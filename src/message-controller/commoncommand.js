@@ -1,11 +1,6 @@
-const { formatResponse, showGroupStats } = require('../utils/utils');
+const { formatResponse } = require('../utils/utils');
 
-const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
-    const helpText = `
-╔══════════════════╗
-║ 🚀 *TECHITOON BOT* 🚀 ║
-╚══════════════════╝
-
+const helpText = `
 📌 **Techitoon bot Commands:**
 
 ✅ \`.ping\` - Check bot status 🟢  
@@ -30,7 +25,6 @@ const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
 🏆 \`.endtournament [name]\` - End a tournament 🏁  
 📅 \`.tournamentstatus\` - View current tournament status 🏅
 
-${isGroup ? `
 **Admin Commands:**
 🔐 \`.clearwarns @user\` - Clear warnings for a user 🧹  
 📢 \`.setannouncement [message]\` - Set a custom announcement 📣  
@@ -56,12 +50,9 @@ ${isGroup ? `
 🔹 \`.stopwelcome\` - Disable welcome messages ❌  
 🔹 \`.enable\` - Enable the bot in this group ✅  
 🔹 \`.disable\` - Disable the bot in this group ⛔  
-` : ''}
+`;
 
-╭━ ⋅☆⋅ ━╮  
-  🤖 *Techitoon AI*  
-╰━ ⋅☆⋅ ━╯
-    `;
+const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
     await sock.sendMessage(chatId, { text: formatResponse(helpText) });
 };
 

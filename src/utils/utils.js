@@ -19,21 +19,22 @@ function manageUserStats(userId, action) {
 }
 
 const formatResponse = (text) => {
-    return `
-╔══════════════════╗
-║ 🚀 *TECHITOON BOT* 🚀 ║
-╚══════════════════╝
-
-${text}
-
-╭━ ⋅☆⋅ ━╮
-  🤖 *Techitoon AI*
-╰━ ⋅☆⋅ ━╯
-    `;
+    const header = `╔══════════════════╗\n║ 🚀 TECHITOON BOT 🚀 ║\n╚══════════════════╝\n\n`;
+    const footer = `\n╭━ ⋅☆⋅ ━╮\n  🤖 *Techitoon AI*\n╰━ ⋅☆⋅ ━╯\n`;
+    return header + text + footer;
 };
 
 const welcomeMessage = (user) => {
-    return `👋 Welcome @${user}!`;
+    return `🔥 Welcome to Efootball Dynasty, @${user}! 🔥
+
+🏆 This is where legends rise, champions battle, and history is made! ⚽💥 Get ready for intense competitions, thrilling matches, and unforgettable moments on the pitch.
+
+🚀 Rules are simple: Respect, Play Fair & Enjoy the Game! 💪🎮
+
+🔹 Tournaments? Leagues? Need Info? – DM the admin.
+🔹 Stay active, stay competitive, and most importantly… HAVE FUN!
+
+👑 Welcome to the Dynasty! Now, let’s make history! 🔥⚽`;
 };
 
 const updateUserStats = (user, command) => {

@@ -1,5 +1,6 @@
 const config = require('../config/config');
-const { formatResponse } = require('../utils/utils');
+const { formatResponse, welcomeMessage } = require('../utils/utils');
+const supabase = require('../supabaseClient');
 
 const scheduledMessages = [];
 
@@ -16,11 +17,9 @@ const tagAll = async (sock, chatId, message, sender) => {
     const participants = groupMetadata.participants.map(p => p.id);
     const mentions = participants.map(id => ({ id }));
 
-    let text = `╔══════════════════╗\n║ 🚀 *TECHITOON BOT* 🚀 ║\n╚══════════════════╝\n\n`;
-    text += `📌 *Group:* 『 ${groupMetadata.subject} 』\n`;
+    let text = `📌 *Group:* 『 ${groupMetadata.subject} 』\n`;
     text += `👤 *User:* 『 @${sender.split('@')[0]} 』\n`;
     text += `📝 *Message:* 『 ${message} 』\n\n`;
-    text += `╭━ ⋅☆⋅ ━╮\n  🤖 *Techitoon AI*\n╰━ ⋅☆⋅ ━╯\n\n`;
 
     participants.forEach(participant => {
         text += `🎊 @${participant.split('@')[0]}\n`;
@@ -79,69 +78,54 @@ const deleteMessage = async (sock, chatId, msg) => {
 };
 
 const startWelcome = async (sock, chatId) => {
-    config.botSettings.welcomeMessagesEnabled = true;
-    await sock.sendMessage(chatId, { text: formatResponse('👋 Welcome messages enabled.') });
-};
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, welcome_messages_enabled: true }, { onConflict: 'group_id' });
 
-const stopWelcome = async (sock, chatId) => {
-    config.botSettings.welcomeMessagesEnabled = false;
-    await sock.sendMessage(chatId, { text: formatResponse('👋 Welcome messages disabled.') });
-};
-
-const detectAndDeleteSpam = async (sock, chatId, msg) => {
-    const msgText = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-    const spamKeywords = ['sale', 'sell', 'exchange', 'dm for price'];
-    const containsSpam = spamKeywords.some(keyword => msgText.toLowerCase().includes(keyword));
-
-    const isMedia = msg.message.imageMessage || msg.message.videoMessage || msg.message.documentMessage || msg.message.audioMessage;
-
-    const sender = msg.key.participant || msg.key.remoteJid;
-    const groupMetadata = await sock.groupMetadata(chatId);
-    const isAdmin = groupMetadata.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
-
-    if (containsSpam && isMedia && !isAdmin && sender !== config.botOwnerId) {
-        await deleteMessage(sock, chatId, msg);
-
-        if (!config.warnings[sender]) {
-            config.warnings[sender] = 0;
-        }
-        config.warnings[sender] += 1;
-
-        const remainingWarnings = config.botSettings.maxWarnings - config.warnings[sender];
-
-        if (config.warnings[sender] >= config.botSettings.maxWarnings) {
-            await sock.groupParticipantsUpdate(chatId, [sender], 'remove');
-            await sock.sendMessage(chatId, { text: formatResponse(`🚫 User @${sender.split('@')[0]} has been kicked for repeated spam.`), mentions: [sender] });
-        } else {
-            await sock.sendMessage(chatId, { text: formatResponse(`⚠️ **Warning**: Only admins are allowed to post sales or exchange content. Please refrain from posting sales-related content in the group or you will be removed after ${remainingWarnings} more warning(s).`), mentions: [sender] });
-        }
+    if (error) {
+        console.error('Error enabling welcome messages:', error);
+        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not enable welcome messages.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponse('✅ Welcome messages have been enabled for this group.') });
     }
 };
 
-const detectAndDeleteLinks = async (sock, chatId, msg) => {
-    const msgText = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-    const containsLink = /https?:\/\/|www\./i.test(msgText);
+const stopWelcome = async (sock, chatId) => {
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, welcome_messages_enabled: false }, { onConflict: 'group_id' });
 
-    const sender = msg.key.participant || msg.key.remoteJid;
-    const groupMetadata = await sock.groupMetadata(chatId);
-    const isAdmin = groupMetadata.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
+    if (error) {
+        console.error('Error disabling welcome messages:', error);
+        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not disable welcome messages.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponse('❌ Welcome messages have been disabled for this group.') });
+    }
+};
 
-    if (containsLink && !isAdmin && sender !== config.botOwnerId) {
-        await deleteMessage(sock, chatId, msg);
+const enableBot = async (sock, chatId) => {
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, bot_enabled: true }, { onConflict: 'group_id' });
 
-        if (!config.warnings[sender]) {
-            config.warnings[sender] = 0;
-        }
-        config.warnings[sender] += 1;
+    if (error) {
+        console.error('Error enabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not enable the bot.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponse('✅ Bot has been enabled for this group.') });
+    }
+};
 
-        const remainingWarnings = config.botSettings.maxWarnings - config.warnings[sender];
+const disableBot = async (sock, chatId) => {
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, bot_enabled: false }, { onConflict: 'group_id' });
 
-        if (config.warnings[sender] >= config.botSettings.maxWarnings) {
-            await sock.groupParticipantsUpdate(chatId, [sender], 'remove');
-            await sock.sendMessage(chatId, { text: formatResponse(`🚫 User @${sender.split('@')[0]} has been kicked for repeated link sharing.`), mentions: [sender] });
-        } else {
-            await sock.sendMessage(chatId, { text: formatResponse(`⚠️ **Warning**: You have posted a link, which is not allowed. Please refrain from posting links in the group or you will be removed after ${remainingWarnings} more warning(s).`), mentions: [sender] });
-        }
+    if (error) {
+        console.error('Error disabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not disable the bot.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponse('❌ Bot has been disabled for this group.') });
     }
 };
 
@@ -161,6 +145,6 @@ module.exports = {
     deleteMessage,
     startWelcome,
     stopWelcome,
-    detectAndDeleteSpam,
-    detectAndDeleteLinks,
+    enableBot,
+    disableBot,
 };

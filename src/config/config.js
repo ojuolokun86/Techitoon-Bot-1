@@ -13,6 +13,8 @@ const config = {
         maxWarnings: 2, // Maximum number of warnings before kicking the user
         enabled: false, // Bot starts in disabled mode
         welcomeMessagesEnabled: false, // Welcome messages start off
+        groupStatus: {}, // Track bot enabled status for each group
+        groupWelcomeStatus: {} // Track welcome message status for each group
     },
     database: {
         url: process.env.SUPABASE_URL,

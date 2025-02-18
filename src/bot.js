@@ -1,26 +1,15 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const config = require('./config/config');
-const { welcomeMessage, updateUserStats } = require('./utils/utils');
+const { welcomeMessage, updateUserStats, formatResponse } = require('./utils/utils');
 const adminCommands = require('./message-controller/admincommand');
 const botCommands = require('./message-controller/botcommand');
 const commonCommands = require('./message-controller/commoncommand');
 const scheduleCommands = require('./message-controller/scheduleMessage');
 const pollCommands = require('./message-controller/polls');
 const tournamentCommands = require('./message-controller/tournaments');
-
-const formatResponse = (text) => {
-    return `
-╔══════════════════╗
-║ 🚀 *TECHITOON BOT* 🚀 ║
-╚══════════════════╝
-
-${text}
-
-╭━ ⋅☆⋅ ━╮
-  🤖 *Techitoon AI*
-╰━ ⋅☆⋅ ━╯
-    `;
-};
+const { handleAntiLink, checkSalesMedia } = require('./message-controller/protection');
+const { promoteUser, demoteUser } = require('./message-controller/adminActions');
+const supabase = require('./supabaseClient');
 
 const handleIncomingMessages = async (sock, m) => {
     try {
@@ -40,18 +29,25 @@ const handleIncomingMessages = async (sock, m) => {
 
         const isGroup = chatId.endsWith('@g.us') || chatId.endsWith('@broadcast');
 
-        if (!config.botSettings.enabled) {
+        const { data: groupSettings, error } = await supabase
+            .from('group_settings')
+            .select('bot_enabled')
+            .eq('group_id', chatId)
+            .single();
+
+        if (error || !groupSettings.bot_enabled) {
             if (msgText.trim().startsWith(config.botSettings.commandPrefix)) {
                 const args = msgText.trim().split(/ +/);
                 const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
                 if (command === 'enable' && sender === config.botOwnerId) {
-                    config.botSettings.enabled = true;
-                    await sock.sendMessage(chatId, { text: formatResponse('✅ Bot has been enabled.') });
+                    await adminCommands.enableBot(sock, chatId);
                 } else {
-                    await sock.sendMessage(chatId, { text: formatResponse('The bot is disabled. Please try again later.') });
+                    await sock.sendMessage(chatId, {
+                        text: 'Oops! 🤖 The bot is currently disabled in this group. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏',
+                    });
                 }
             }
-            console.log('🛑 Bot is disabled.');
+            console.log('🛑 Bot is disabled in this group.');
             return;
         }
 
@@ -62,8 +58,22 @@ const handleIncomingMessages = async (sock, m) => {
 
         if (!msgText.trim().startsWith(config.botSettings.commandPrefix)) {
             console.log('🛑 Ignoring non-command message');
-            await adminCommands.detectAndDeleteSpam(sock, chatId, message);
-            await adminCommands.detectAndDeleteLinks(sock, chatId, message);
+            await handleAntiLink(sock, message);
+            await checkSalesMedia(sock, message);
+
+            // Handle .delete command for quoted messages
+            if (message.message?.extendedTextMessage?.contextInfo?.quotedMessage && msgText.trim().toLowerCase() === '.delete') {
+                try {
+                    const quotedMessageKey = message.message.extendedTextMessage.contextInfo.stanzaId;
+                    const quotedMessageRemoteJid = message.message.extendedTextMessage.contextInfo.participant || chatId;
+                    await sock.sendMessage(chatId, { delete: { id: quotedMessageKey, remoteJid: quotedMessageRemoteJid, fromMe: true } });
+                    await sock.sendMessage(chatId, { text: formatResponse('🗑️ The message has been deleted.') });
+                } catch (error) {
+                    console.error("Error deleting message:", error);
+                    await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not delete the message.') });
+                }
+            }
+
             return;
         }
 
@@ -88,7 +98,7 @@ const handleIncomingMessages = async (sock, m) => {
             }
         }
 
-        const adminCommandSet = new Set(['ban', 'tagall', 'mute', 'unmute', 'announce', 'stopannounce', 'schedule', 'listscheduled', 'pin', 'unpin', 'clear', 'setgrouprules', 'settournamentrules', 'setlanguage', 'showstats', 'delete', 'startwelcome', 'stopwelcome']);
+        const adminCommandSet = new Set(['ban', 'tagall', 'mute', 'unmute', 'announce', 'stopannounce', 'schedule', 'listscheduled', 'pin', 'unpin', 'clear', 'setgrouprules', 'settournamentrules', 'setlanguage', 'showstats', 'delete', 'startwelcome', 'stopwelcome', 'promote', 'demote', 'enable', 'disable']);
 
         if (adminCommandSet.has(command)) {
             if (!isGroup) {
@@ -200,34 +210,22 @@ const handleIncomingMessages = async (sock, m) => {
                 await adminCommands.deleteMessage(sock, chatId, message);
                 break;
             case 'enable':
-                if (sender === config.botOwnerId) {
-                    config.botSettings.enabled = true;
-                    await sock.sendMessage(chatId, { text: formatResponse('✅ Bot has been enabled.') });
-                } else {
-                    await sock.sendMessage(chatId, { text: formatResponse('❌ You do not have permission to enable the bot.') });
-                }
+                await adminCommands.enableBot(sock, chatId);
                 break;
             case 'disable':
-                if (sender === config.botOwnerId) {
-                    config.botSettings.enabled = false;
-                    await sock.sendMessage(chatId, { text: formatResponse('❌ Bot has been disabled.') });
-                } else {
-                    await sock.sendMessage(chatId, { text: formatResponse('❌ You do not have permission to disable the bot.') });
-                }
+                await adminCommands.disableBot(sock, chatId);
                 break;
             case 'startwelcome':
-                if (sender === config.botOwnerId) {
-                    await adminCommands.startWelcome(sock, chatId);
-                } else {
-                    await sock.sendMessage(chatId, { text: formatResponse('❌ You do not have permission to start welcome messages.') });
-                }
+                await adminCommands.startWelcome(sock, chatId);
                 break;
             case 'stopwelcome':
-                if (sender === config.botOwnerId) {
-                    await adminCommands.stopWelcome(sock, chatId);
-                } else {
-                    await sock.sendMessage(chatId, { text: formatResponse('❌ You do not have permission to stop welcome messages.') });
-                }
+                await adminCommands.stopWelcome(sock, chatId);
+                break;
+            case 'promote':
+                await promoteUser(sock, chatId, message);
+                break;
+            case 'demote':
+                await demoteUser(sock, chatId, message);
                 break;
             default:
                 await sock.sendMessage(chatId, { text: formatResponse('❌ Unknown command! Use .help for commands list.') });
@@ -249,7 +247,13 @@ module.exports.startBot = (sock) => {
         const chat = await sock.groupMetadata(update.id);
         const contact = update.participants[0];
         const user = contact.split('@')[0];
-        if (update.action === 'add' && config.botSettings.welcomeMessagesEnabled) {
+        const { data: groupSettings, error } = await supabase
+            .from('group_settings')
+            .select('welcome_messages_enabled')
+            .eq('group_id', update.id)
+            .single();
+
+        if (update.action === 'add' && groupSettings && groupSettings.welcome_messages_enabled) {
             await sock.sendMessage(chat.id, { text: formatResponse(welcomeMessage(user)) });
             console.log(`👋 Sent welcome message to ${user}`);
         }
