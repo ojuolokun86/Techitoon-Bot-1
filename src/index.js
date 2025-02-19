@@ -2,20 +2,6 @@ require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { startBot } = require('./bot');
 
-const formatResponse = (text) => {
-    return `
-╔══════════════════╗
-║ 🚀 *TECHITOON BOT* 🚀 ║
-╚══════════════════╝
-
-${text}
-
-╭━ ⋅☆⋅ ━╮
-  🤖 *Techitoon AI*
-╰━ ⋅☆⋅ ━╯
-    `;
-};
-
 const start = async () => {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     const sock = makeWASocket({

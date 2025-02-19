@@ -1,6 +1,6 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const config = require('./config/config');
-const { welcomeMessage, updateUserStats, formatResponse } = require('./utils/utils');
+const { welcomeMessage, updateUserStats, formatResponseWithHeaderFooter } = require('./utils/utils');
 const adminCommands = require('./message-controller/admincommand');
 const botCommands = require('./message-controller/botcommand');
 const commonCommands = require('./message-controller/commoncommand');
@@ -43,7 +43,7 @@ const handleIncomingMessages = async (sock, m) => {
                     await adminCommands.enableBot(sock, chatId);
                 } else {
                     await sock.sendMessage(chatId, {
-                        text: 'Oops! 🤖 The bot is currently disabled in this group. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏',
+                        text: formatResponseWithHeaderFooter('Oops! 🤖 The bot is currently disabled in this group. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏'),
                     });
                 }
             }
@@ -67,10 +67,10 @@ const handleIncomingMessages = async (sock, m) => {
                     const quotedMessageKey = message.message.extendedTextMessage.contextInfo.stanzaId;
                     const quotedMessageRemoteJid = message.message.extendedTextMessage.contextInfo.participant || chatId;
                     await sock.sendMessage(chatId, { delete: { id: quotedMessageKey, remoteJid: quotedMessageRemoteJid, fromMe: true } });
-                    await sock.sendMessage(chatId, { text: formatResponse('🗑️ The message has been deleted.') });
+                    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🗑️ The message has been deleted.') });
                 } catch (error) {
                     console.error("Error deleting message:", error);
-                    await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not delete the message.') });
+                    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not delete the message.') });
                 }
             }
 
@@ -102,22 +102,22 @@ const handleIncomingMessages = async (sock, m) => {
 
         if (adminCommandSet.has(command)) {
             if (!isGroup) {
-                await sock.sendMessage(chatId, { text: formatResponse('This command is available only in group chats.') });
+                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('This command is available only in group chats.') });
                 return;
             }
             if (!isAdmin && sender !== config.botOwnerId) {
-                await sock.sendMessage(chatId, { text: formatResponse('❌ You are not an admin to use this command.') });
+                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ You are not an admin to use this command.') });
                 return;
             }
             if (!isBotAdmin) {
-                await sock.sendMessage(chatId, { text: formatResponse('❌ Bot is not an admin in this group.') });
+                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Bot is not an admin in this group.') });
                 return;
             }
         }
 
         switch (command) {
             case 'ping':
-                await sock.sendMessage(chatId, { text: formatResponse('🏓 Pong! Bot is active.') });
+                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🏓 Pong! Bot is active.') });
                 break;
             case 'help':
                 await commonCommands.sendHelpMenu(sock, chatId, isGroup, isAdmin);
@@ -150,7 +150,16 @@ const handleIncomingMessages = async (sock, m) => {
                 await adminCommands.banUser(sock, chatId, args);
                 break;
             case 'tagall':
-                await adminCommands.tagAll(sock, chatId, args.join(' '), sender);
+                const groupMetadata = await sock.groupMetadata(chatId);
+                const participants = groupMetadata.participants.map(p => p.id);
+                const mentions = participants.map(p => `@${p.split('@')[0]}`).join(' ');
+                const tagallMessage = `
+                📢 *Tag All Command* 📢
+                👤 *User*: @${sender.split('@')[0]}
+                👥 *Group*: ${groupMetadata.subject}
+                📝 *Message*: ${args.join(' ')}
+                `;
+                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(tagallMessage), mentions: participants });
                 break;
             case 'mute':
                 await adminCommands.startAnnouncement(sock, chatId, args.join(' '));
@@ -228,7 +237,7 @@ const handleIncomingMessages = async (sock, m) => {
                 await demoteUser(sock, chatId, message);
                 break;
             default:
-                await sock.sendMessage(chatId, { text: formatResponse('❌ Unknown command! Use .help for commands list.') });
+                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Unknown command! Use .help for commands list.') });
         }
 
         // Update user statistics for commands
@@ -254,7 +263,7 @@ module.exports.startBot = (sock) => {
             .single();
 
         if (update.action === 'add' && groupSettings && groupSettings.welcome_messages_enabled) {
-            await sock.sendMessage(chat.id, { text: formatResponse(welcomeMessage(user)) });
+            await sock.sendMessage(chat.id, { text: formatResponseWithHeaderFooter(welcomeMessage(user)) });
             console.log(`👋 Sent welcome message to ${user}`);
         }
     });

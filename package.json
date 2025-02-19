@@ -4,15 +4,16 @@
   "description": "Techitoon Bot",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "start:dev": "nodemon src/index.js"
   },
   "dependencies": {
     "@hapi/boom": "^9.1.4",
     "@supabase/supabase-js": "^2.48.1",
     "@vitalets/google-translate-api": "^9.2.1",
     "@whiskeysockets/baileys": "^6.7.13",
-    "axios": "^1.7.9",
-    "dotenv": "^16.4.7",
+    "axios": "^0.24.0",
+    "dotenv": "^10.0.0",
     "node-schedule": "^2.1.1",
     "qrcode-terminal": "^0.12.0"
   }

@@ -1,6 +1,6 @@
 const { getGroupMetadata, deleteMessage, sendMessage, groupParticipantsUpdate } = require('@whiskeysockets/baileys');
 const config = require('../config/config');
-const { formatResponse } = require('../utils/utils');
+const { formatResponseWithHeaderFooter } = require('../utils/utils');
 const warnings = {};  // Stores user warnings
 
 // Strong anti-link regex
@@ -47,7 +47,7 @@ async function handleAntiLink(sock, message) {
             // Delete the message and warn the user
             await sock.sendMessage(chatId, { delete: message.key });
             warnings[participant] = (warnings[participant] || 0) + 1;
-            await sock.sendMessage(chatId, { text: `⚠️ Warning ${warnings[participant]}/3: No links allowed, @${participant.split('@')[0]}!` });
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`⚠️ Warning ${warnings[participant]}/3: No links allowed, @${participant.split('@')[0]}!`) });
 
             // Remove user if they reach 3 warnings
             if (warnings[participant] >= 3) {
@@ -86,7 +86,7 @@ async function checkSalesMedia(sock, message) {
             // Delete the message and warn the user
             await sock.sendMessage(chatId, { delete: message.key });
             warnings[participant] = (warnings[participant] || 0) + 1;
-            await sock.sendMessage(chatId, { text: `⚠️ Warning ${warnings[participant]}/2: No sales or swap posts allowed, @${participant.split('@')[0]}.` });
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`⚠️ Warning ${warnings[participant]}/2: No sales or swap posts allowed, @${participant.split('@')[0]}.`) });
 
             // Remove user if they reach 2 warnings
             if (warnings[participant] >= 2) {

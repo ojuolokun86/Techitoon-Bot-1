@@ -18,11 +18,16 @@ function manageUserStats(userId, action) {
     // This could include incrementing message counts, tracking activity, etc.
 }
 
-const formatResponse = (text) => {
-    const header = `╔══════════════════╗\n║ 🚀 TECHITOON BOT 🚀 ║\n╚══════════════════╝\n\n`;
-    const footer = `\n╭━ ⋅☆⋅ ━╮\n  🤖 *Techitoon AI*\n╰━ ⋅☆⋅ ━╯\n`;
-    return header + text + footer;
-};
+function formatResponseWithHeaderFooter(text) {
+    return `
+🚀 𝙏𝙀𝘾𝙃𝙄𝙏𝙊𝙊𝙉 𝘽𝙊𝙏 🚀
+
+${text}
+━━━━━━━━━━━━━━━
+  🤖 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 𝘼𝙄
+━━━━━━━━━━━━━━━
+    `;
+}
 
 const welcomeMessage = (user) => {
     return `🔥 Welcome to Efootball Dynasty, @${user}! 🔥
@@ -72,11 +77,15 @@ const showGroupStats = async (sock, chatId) => {
         // Add more stats for each user if available
     }
 
-    await sock.sendMessage(chatId, { text: formatResponse(statsText), mentions: participants.map(p => p.id) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(statsText), mentions: participants.map(p => p.id) });
 };
 
 module.exports = {
-    formatResponse,
+    formatMessage,
+    logError,
+    isOwner,
+    manageUserStats,
+    formatResponseWithHeaderFooter,
     welcomeMessage,
     updateUserStats,
     showGroupStats,

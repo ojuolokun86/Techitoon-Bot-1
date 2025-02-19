@@ -1,15 +1,15 @@
 const config = require('../config/config');
-const { formatResponse, welcomeMessage } = require('../utils/utils');
+const { formatResponseWithHeaderFooter, welcomeMessage } = require('../utils/utils');
 const supabase = require('../supabaseClient');
 
 const scheduledMessages = [];
 
 const scheduleMessage = async (sock, chatId, args) => {
-    await sock.sendMessage(chatId, { text: formatResponse('📅 Message scheduled.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📅 Message scheduled.') });
 };
 
 const clearChat = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('🧹 Chat cleared by admin.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🧹 Chat cleared by admin.') });
 };
 
 const tagAll = async (sock, chatId, message, sender) => {
@@ -21,52 +21,48 @@ const tagAll = async (sock, chatId, message, sender) => {
     text += `👤 *User:* 『 @${sender.split('@')[0]} 』\n`;
     text += `📝 *Message:* 『 ${message} 』\n\n`;
 
-    participants.forEach(participant => {
-        text += `🎊 @${participant.split('@')[0]}\n`;
-    });
-
-    await sock.sendMessage(chatId, { text: formatResponse(text), mentions });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(text), mentions });
 };
 
 const startAnnouncement = async (sock, chatId, message) => {
-    await sock.sendMessage(chatId, { text: formatResponse(`📢 Announcement started: ${message}`) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📢 Announcement started: ${message}`) });
 };
 
 const stopAnnouncement = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('📢 Announcement stopped.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📢 Announcement stopped.') });
 };
 
 const listScheduledMessages = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('📅 Listing scheduled messages.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📅 Listing scheduled messages.') });
 };
 
 const pinMessage = async (sock, chatId, args) => {
-    await sock.sendMessage(chatId, { text: formatResponse('📌 Message pinned.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📌 Message pinned.') });
 };
 
 const unpinMessage = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('📌 Message unpinned.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📌 Message unpinned.') });
 };
 
 const setGroupRules = async (sock, chatId, rules) => {
-    await sock.sendMessage(chatId, { text: formatResponse(`📜 Group rules set: ${rules}`) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 Group rules set: ${rules}`) });
 };
 
 const setTournamentRules = async (sock, chatId, rules) => {
-    await sock.sendMessage(chatId, { text: formatResponse(`📜 Tournament rules set: ${rules}`) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 Tournament rules set: ${rules}`) });
 };
 
 const setLanguage = async (sock, chatId, args) => {
-    await sock.sendMessage(chatId, { text: formatResponse('🌐 Language set.') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🌐 Language set.') });
 };
 
 const banUser = async (sock, chatId, args) => {
     if (args.length > 0) {
         const userToBan = args[0].replace('@', '') + "@s.whatsapp.net";
         await sock.groupParticipantsUpdate(chatId, [userToBan], 'remove');
-        await sock.sendMessage(chatId, { text: formatResponse(`🚫 User ${args[0]} has been banned.`) });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🚫 User ${args[0]} has been banned.`) });
     } else {
-        await sock.sendMessage(chatId, { text: formatResponse('Usage: .ban @user') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Usage: .ban @user') });
     }
 };
 
@@ -84,9 +80,9 @@ const startWelcome = async (sock, chatId) => {
 
     if (error) {
         console.error('Error enabling welcome messages:', error);
-        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not enable welcome messages.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not enable welcome messages.') });
     } else {
-        await sock.sendMessage(chatId, { text: formatResponse('✅ Welcome messages have been enabled for this group.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('✅ Welcome messages have been enabled for this group.') });
     }
 };
 
@@ -97,9 +93,9 @@ const stopWelcome = async (sock, chatId) => {
 
     if (error) {
         console.error('Error disabling welcome messages:', error);
-        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not disable welcome messages.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not disable welcome messages.') });
     } else {
-        await sock.sendMessage(chatId, { text: formatResponse('❌ Welcome messages have been disabled for this group.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Welcome messages have been disabled for this group.') });
     }
 };
 
@@ -110,9 +106,9 @@ const enableBot = async (sock, chatId) => {
 
     if (error) {
         console.error('Error enabling bot:', error);
-        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not enable the bot.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not enable the bot.') });
     } else {
-        await sock.sendMessage(chatId, { text: formatResponse('✅ Bot has been enabled for this group.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('✅ Bot has been enabled for this group.') });
     }
 };
 
@@ -123,9 +119,9 @@ const disableBot = async (sock, chatId) => {
 
     if (error) {
         console.error('Error disabling bot:', error);
-        await sock.sendMessage(chatId, { text: formatResponse('⚠️ Could not disable the bot.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not disable the bot.') });
     } else {
-        await sock.sendMessage(chatId, { text: formatResponse('❌ Bot has been disabled for this group.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Bot has been disabled for this group.') });
     }
 };
 

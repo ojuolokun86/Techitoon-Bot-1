@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const config = {
     botOwnerId: "2348026977793@s.whatsapp.net",
-    adminNumber: process.env.ADMIN_NUMBER,
+    adminNumber: "2348026977793@s.whatsapp.net", // Replace with your actual number
     apiKeys: {
         weatherApiKey: process.env.WEATHER_API_KEY,
         translationApiKey: process.env.TRANSLATION_API_KEY,

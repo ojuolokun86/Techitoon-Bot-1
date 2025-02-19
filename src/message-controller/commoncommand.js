@@ -1,10 +1,10 @@
-const { formatResponse } = require('../utils/utils');
+const { formatResponseWithHeaderFooter, showGroupStats } = require('../utils/utils');
 
 const helpText = `
 📌 **Techitoon bot Commands:**
 
 ✅ \`.ping\` - Check bot status 🟢  
-✅ \`.help\` - Show this help menu ❓  
+✅ \`.help\` - Show this menu ❓  
 ✅ \`.joke\` - Get a random joke 😂  
 ✅ \`.quote\` - Get an inspirational quote 💡  
 ✅ \`.weather [city]\` - Get weather info for a city 🌦️  
@@ -39,8 +39,8 @@ const helpText = `
 🔹 \`.unmute\` - Unmute the group 🔊  
 🔹 \`.announce [message]\` - Start announcement (every 30 mins) 📣  
 🔹 \`.announce stop\` - Stop announcement ❌  
-🔹 \`.onlyadmin\` - Restrict chat to admins only 👑  
-🔹 \`.notonlyadmin\` - Allow all members to chat 🗣️  
+🔹 \`.lock\` - Restrict chat to admins only 👑  
+🔹 \`.unlock\` - Allow all members to chat 🗣️  
 🔹 \`.clear\` - Clear the chat 🧹  
 🔹 \`.setgrouprules [rules]\` - Set group rules 📜  
 🔹 \`.settournamentrules [rules]\` - Set tournament rules 🏆  
@@ -53,22 +53,22 @@ const helpText = `
 `;
 
 const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
-    await sock.sendMessage(chatId, { text: formatResponse(helpText) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(helpText) });
 };
 
 const sendJoke = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('😂 Here is a joke for you!') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('😂 Here is a joke for you!') });
 };
 
 const sendQuote = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('💬 Here is a quote for you!') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('💬 Here is a quote for you!') });
 };
 
 const listAdmins = async (sock, chatId) => {
     const groupMetadata = await sock.groupMetadata(chatId);
     const admins = groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin');
     const adminList = admins.map(admin => `- @${admin.id.split('@')[0]}`).join('\n');
-    await sock.sendMessage(chatId, { text: formatResponse(`👮 *Group Admins*:\n${adminList}`), mentions: admins.map(admin => admin.id) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`👮 *Group Admins*:\n${adminList}`), mentions: admins.map(admin => admin.id) });
 };
 
 const sendGroupInfo = async (sock, chatId) => {
@@ -80,11 +80,11 @@ const sendGroupInfo = async (sock, chatId) => {
 - Created At: ${new Date(groupMetadata.creation * 1000).toLocaleString()}
 - Participants: ${groupMetadata.participants.length}
     `;
-    await sock.sendMessage(chatId, { text: formatResponse(groupInfo) });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(groupInfo) });
 };
 
 const sendGroupRules = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponse('📜 Here are the group rules!') });
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📜 Here are the group rules!') });
 };
 
 const showAllGroupStats = async (sock, chatId) => {
