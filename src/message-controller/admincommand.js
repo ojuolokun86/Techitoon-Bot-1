@@ -23,21 +23,21 @@ const tagAll = async (sock, chatId, message, sender) => {
 
 const startAnnouncement = async (sock, chatId, message) => {
     try {
-        // Send announcement message
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📢 Announcement: ${message}`) });
+        await sock.groupSettingUpdate(chatId, 'announcement');
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📢 Announcement:\n\n${message}`) });
     } catch (error) {
         console.error('Error starting announcement:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error starting the announcement.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not start announcement mode.') });
     }
 };
 
 const stopAnnouncement = async (sock, chatId) => {
     try {
-        // Send stop announcement message
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📢 Announcement has ended.') });
+        await sock.groupSettingUpdate(chatId, 'not_announcement');
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🔊 Group is now open for everyone.') });
     } catch (error) {
         console.error('Error stopping announcement:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error stopping the announcement.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not stop announcement mode.') });
     }
 };
 

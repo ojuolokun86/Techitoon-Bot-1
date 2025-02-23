@@ -2,6 +2,10 @@ const axios = require('axios');
 const translate = require('@vitalets/google-translate-api');
 const config = require('../config/config');
 const { isLink, isSalesRelated, welcomeMessage, formatResponseWithHeaderFooter, showGroupStats } = require('../utils/utils');
+const { saveLink, shareLink, deleteLink } = require('../message-controller/links');
+const { scheduleMessage, remind, cancelSchedule, cancelReminder } = require('../message-controller/scheduleMessage');
+const { createPoll, vote, endPoll } = require('../message-controller/polls');
+const { warnUser, listWarnings, kickUser } = require('../message-controller/warning');
 
 const handleWeatherCommand = async (sock, msg, args) => {
     const city = args.join(' ');
@@ -126,6 +130,45 @@ const handleIncomingMessages = async (sock, m) => {
                 break;
             case 'showstats':
                 await showGroupStats(sock, msg.key.remoteJid);
+                break;
+            case 'savelink':
+                await saveLink(sock, msg.key.remoteJid, contact, args);
+                break;
+            case 'sharelink':
+                await shareLink(sock, msg.key.remoteJid, args);
+                break;
+            case 'deletelink':
+                await deleteLink(sock, msg.key.remoteJid, args);
+                break;
+            case 'schedule':
+                await scheduleMessage(sock, msg.key.remoteJid, args);
+                break;
+            case 'remind':
+                await remind(sock, msg.key.remoteJid, args);
+                break;
+            case 'cancelschedule':
+                await cancelSchedule(sock, msg.key.remoteJid, args);
+                break;
+            case 'cancelreminder':
+                await cancelReminder(sock, msg.key.remoteJid);
+                break;
+            case 'poll':
+                await createPoll(sock, msg.key.remoteJid, args, contact);
+                break;
+            case 'vote':
+                await vote(sock, msg.key.remoteJid, args, contact);
+                break;
+            case 'endpoll':
+                await endPoll(sock, msg.key.remoteJid, contact);
+                break;
+            case 'warn':
+                await warnUser(sock, msg.key.remoteJid, args[0], args.slice(1).join(' '));
+                break;
+            case 'listwarn':
+                await listWarnings(sock, msg.key.remoteJid);
+                break;
+            case 'kick':
+                await kickUser(sock, msg.key.remoteJid, args[0]);
                 break;
             // Add other commands here
         }

@@ -49,7 +49,7 @@ async function isAllowedLink(sock, text, sender, isAdmin) {
 
     // Check if the link is saved in Supabase
     const { data, error } = await supabase
-        .from('saved_links')
+        .from('links')
         .select('link')
         .eq('link', text)
         .single();
@@ -125,9 +125,9 @@ async function checkSalesMedia(sock, message) {
         // Check if the message contains sales-related keywords
         const caption = message.message.imageMessage?.caption?.toLowerCase() || '';
         if (SALES_KEYWORDS.some(word => caption.includes(word))) {
-            if (userAdmin) {
-                console.log(`✅ Admin ${participant} posted sales-related content. No action taken.`);
-                return;  // Allow admins to post sales stuff
+            if (userAdmin || participant === config.botOwnerId) {
+                console.log(`✅ Admin or bot owner ${participant} posted sales-related content. No action taken.`);
+                return;  // Allow admins and bot owner to post sales stuff
             }
 
             // Delete the message and warn the user
@@ -156,11 +156,11 @@ async function checkAccountSales(sock, message) {
         }
 
         // Check if the message contains account-related sales keywords
-        const msgText = message.message.conversation?.toLowerCase() || message.message.extendedTextMessage?.text?.toLowerCase() || '';
+        const msgText = message.message.conversation?.toLowerCase() || message.message.extendedTextMessage?.text?.toLowerCase() || message.message.imageMessage?.caption?.toLowerCase() || '';
         if (msgText.includes('account') && SALES_KEYWORDS.some(word => msgText.includes(word))) {
-            if (userAdmin) {
-                console.log(`✅ Admin ${participant} posted account-related sales content. No action taken.`);
-                return;  // Allow admins to post account-related sales stuff
+            if (userAdmin || participant === config.botOwnerId) {
+                console.log(`✅ Admin or bot owner ${participant} posted account-related sales content. No action taken.`);
+                return;  // Allow admins and bot owner to post account-related sales stuff
             }
 
             // Delete the message and warn the user
@@ -180,7 +180,7 @@ const handleIncomingMessages = async (sock, message) => {
 
     const chatId = message.key.remoteJid;
     const sender = message.key.participant || message.key.remoteJid;
-    const msgText = message.message.conversation || message.message.extendedTextMessage?.text || '';
+    const msgText = message.message.conversation || message.message.extendedTextMessage?.text || message.message.imageMessage?.caption || '';
 
     // Check for links, sales messages, or account-related sales messages
     if (containsLink(msgText)) {

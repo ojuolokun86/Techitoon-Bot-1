@@ -32,19 +32,23 @@ const handleTranslateCommand = async (sock, message, args) => {
     }
 };
 
-const handleShareLinkCommand = async (sock, chatId) => {
+const handleShareLinkCommand = async (sock, chatId, args) => {
     try {
-        const { data: links, error } = await supabase
-            .from('saved_links')
-            .select('link')
-            .eq('group_id', chatId);
+        const title = args.join(' ');
 
-        if (error || !links.length) {
+        const { data: links, error } = await supabase
+            .from('links')
+            .select('link')
+            .eq('group_id', chatId)
+            .eq('title', title)
+            .single();
+
+        if (error || !links) {
             await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('No saved links found for this group.') });
             return;
         }
 
-        const link = links[0].link;
+        const link = links.link;
         await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🔗 Check out this link: ${link}`) });
 
         // Schedule task to repost the link every 2 hours

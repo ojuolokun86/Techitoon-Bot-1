@@ -1,45 +1,21 @@
-const supabase = require('../supabaseClient');
+const config = require('../config/config');
 const { formatResponseWithHeaderFooter } = require('../utils/utils');
+const supabase = require('../supabaseClient');
 
 const warnUser = async (sock, chatId, userId, reason) => {
     try {
-        // Check existing warnings
-        const { data: warnings, error: fetchError } = await supabase
+        const { data, error } = await supabase
             .from('warnings')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('group_id', chatId);
+            .insert([{ group_id: chatId, user_id: userId, reason }]);
 
-        if (fetchError) {
-            console.error('Error fetching warnings:', fetchError);
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error fetching warnings.') });
+        if (error) {
+            console.error('Error warning user:', error);
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error warning user.') });
             return;
         }
 
-        let warningCount = warnings.length;
-
-        // Add new warning
-        const { error: insertError } = await supabase
-            .from('warnings')
-            .insert([{ user_id: userId, group_id: chatId, reason }]);
-
-        if (insertError) {
-            console.error('Error adding warning:', insertError);
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error adding warning.') });
-            return;
-        }
-
-        warningCount += 1;
-
-        // Send warning message
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`⚠️ Warning ${warningCount}: ${reason}`) });
-
-        // Check if user should be kicked
-        if (reason.includes('link') && warningCount >= 3) {
-            await kickUser(sock, chatId, userId);
-        } else if (reason.includes('sales') && warningCount >= 2) {
-            await kickUser(sock, chatId, userId);
-        }
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`⚠️ User @${userId.split('@')[0]} has been warned. Reason: ${reason}`), mentions: [userId] });
+        console.log(`⚠️ User ${userId} warned in group: ${chatId}`);
     } catch (error) {
         console.error('Error warning user:', error);
         await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error warning user.') });
@@ -48,42 +24,64 @@ const warnUser = async (sock, chatId, userId, reason) => {
 
 const listWarnings = async (sock, chatId) => {
     try {
-        const { data: warnings, error } = await supabase
+        const { data, error } = await supabase
             .from('warnings')
             .select('*')
             .eq('group_id', chatId);
 
         if (error) {
-            console.error('Error fetching warnings:', error);
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error fetching warnings.') });
+            console.error('Error listing warnings:', error);
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error listing warnings.') });
             return;
         }
 
-        if (warnings.length === 0) {
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('No warnings found for this group.') });
+        if (data.length === 0) {
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('No warnings found in this group.') });
             return;
         }
 
-        let warningMessage = '⚠️ **Warnings for this group:**\n\n';
-        warnings.forEach((warning, index) => {
-            warningMessage += `${index + 1}. User: @${warning.user_id.split('@')[0]}, Reason: ${warning.reason}\n`;
+        let warningList = '⚠️ *Warnings in this group:* ⚠️\n\n';
+        data.forEach((warning, index) => {
+            warningList += `${index + 1}. @${warning.user_id.split('@')[0]} - ${warning.reason}\n`;
         });
 
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(warningMessage), mentions: warnings.map(w => w.user_id) });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(warningList), mentions: data.map(w => w.user_id) });
     } catch (error) {
         console.error('Error listing warnings:', error);
         await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error listing warnings.') });
     }
 };
 
-const kickUser = async (sock, chatId, userId) => {
+const resetWarnings = async (sock, chatId, userId) => {
     try {
-        await sock.groupParticipantsUpdate(chatId, [userId], 'remove');
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🚫 User @${userId.split('@')[0]} has been kicked for repeated violations.`), mentions: [userId] });
+        const { data, error } = await supabase
+            .from('warnings')
+            .delete()
+            .eq('group_id', chatId)
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('Error resetting warnings:', error);
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error resetting warnings.') });
+            return;
+        }
+
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`✅ Warnings for user @${userId.split('@')[0]} have been reset.`), mentions: [userId] });
+        console.log(`✅ Warnings reset for user ${userId} in group: ${chatId}`);
     } catch (error) {
-        console.error('Error kicking user:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error kicking user.') });
+        console.error('Error resetting warnings:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error resetting warnings.') });
     }
 };
 
-module.exports = { warnUser, listWarnings, kickUser };
+async function kickUser(sock, chatId, userId) {
+    try {
+        await sock.groupParticipantsUpdate(chatId, [userId], 'remove');
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🚫 User ${userId} has been removed from the group.`) });
+    } catch (error) {
+        console.error("Error kicking user:", error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error kicking user.') });
+    }
+}
+
+module.exports = { warnUser, listWarnings, resetWarnings, kickUser };

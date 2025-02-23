@@ -8,6 +8,7 @@ Techitoon Bot is a feature-rich WhatsApp bot designed to enhance user interactio
 - **Admin Commands**: Certain commands are restricted to bot administrators, allowing for group management and user moderation.
 - **Bot Commands**: General commands that any user can execute, providing fun and useful interactions.
 - **Common Commands**: Accessible commands for all users, offering information and utilities.
+- **Security Features**: The bot includes security features to maintain admin rights and prevent unauthorized takeovers.
 
 ## Project Structure
 
@@ -23,10 +24,18 @@ Techitoon-Bot
 │   ├── message-controller
 │   │   ├── admincommand.js
 │   │   ├── botcommand.js
-│   │   └── commoncommand.js
+│   │   ├── commoncommand.js
+│   │   ├── insertCommands.js
+│   │   ├── links.js
+│   │   ├── polls.js
+│   │   ├── protection.js
+│   │   ├── scheduleMessage.js
+│   │   └── warning.js
 │   └── utils
+│       ├── logger.js
 │       └── utils.js
 ├── package.json
+├── .env
 └── README.md
 ```
 
@@ -49,10 +58,26 @@ Techitoon-Bot
 
 4. **Configure the Bot**:
    - Open `src/config/config.js` and set your API keys and bot owner ID.
+   - Ensure the `.env` file is correctly set with the necessary environment variables:
+     ```properties
+     BOT_NUMBER=2348026977793
+     ADMIN_NUMBER=2348026977793@s.whatsapp.net
+     PREFIX=.
+     SUPABASE_URL=https://lrirviucztezerohsxjq.supabase.co
+     SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyaXJ2aXVjenRlemVyb2hzeGpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkwMTU4NDIsImV4cCI6MjA1NDU5MTg0Mn0.nuWMFRceGxCU3sxNFl0v2kDX6xRNch-g0_19yTTU-Jk
+     WEATHER_API_KEY=b938e5ef1c00e084a38426211a03a5b8
+     TRANSLATION_API_KEY=your_translation_api_key
+     BOT_OWNER_ID=2348026977793
+     ```
 
 5. **Run the Bot**:
    ```
-   node src/index.js
+   npm start
+   ```
+
+6. **Run the Bot in Development Mode**:
+   ```
+   npm run start:dev
    ```
 
 ## Usage Guidelines

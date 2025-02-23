@@ -22,7 +22,7 @@ const createPoll = async (sock, chatId, args, sender) => {
     }
 };
 
-const vote = async (sock, chatId, args) => {
+const vote = async (sock, chatId, args, sender) => {
     const option = args.join(' ');
     console.log('Voting for option:', option); // Log the option
 
@@ -42,7 +42,7 @@ const vote = async (sock, chatId, args) => {
 
         if (diffHours >= 24) {
             // End the poll automatically
-            const pollResultsMessage = generatePollResultAnnouncement(data.question, data.votes);
+            const pollResultsMessage = generatePollResultAnnouncement(data.question, JSON.parse(data.votes));
             console.log('Poll results:', pollResultsMessage); // Log the poll results
 
             await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(pollResultsMessage) });
@@ -58,13 +58,13 @@ const vote = async (sock, chatId, args) => {
                 console.log('Poll ended successfully'); // Log success message
             }
         } else {
-            const votes = data.votes;
+            const votes = JSON.parse(data.votes);
             votes[option] = (votes[option] || 0) + 1;
             console.log('Updated votes:', votes); // Log the updated votes
 
             const { error: updateError } = await supabase
                 .from('polls')
-                .update({ votes })
+                .update({ votes: JSON.stringify(votes) })
                 .eq('group_id', chatId);
 
             if (updateError) {
@@ -90,23 +90,29 @@ const endPoll = async (sock, chatId, sender) => {
     if (error || !data) {
         console.error('Error fetching poll:', error);
         await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Poll not found.') });
-    } else if (data.creator !== sender && sender !== config.botOwnerId) {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Only the poll creator or the bot owner can end the poll.') });
     } else {
-        const pollResultsMessage = generatePollResultAnnouncement(data.question, data.votes);
-        console.log('Poll results:', pollResultsMessage); // Log the poll results
+        console.log('Poll creator:', data.creator); // Log the poll creator
+        console.log('Sender:', sender); // Log the sender
+        console.log('Bot owner ID:', config.botOwnerId); // Log the bot owner ID
 
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(pollResultsMessage) });
-
-        const { error: deleteError } = await supabase
-            .from('polls')
-            .delete()
-            .eq('group_id', chatId);
-
-        if (deleteError) {
-            console.error('Error ending poll:', deleteError);
+        if (data.creator !== sender && sender !== config.botOwnerId) {
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Only the poll creator or the bot owner can end the poll.') });
         } else {
-            console.log('Poll ended successfully'); // Log success message
+            const pollResultsMessage = generatePollResultAnnouncement(data.question, JSON.parse(data.votes));
+            console.log('Poll results:', pollResultsMessage); // Log the poll results
+
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(pollResultsMessage) });
+
+            const { error: deleteError } = await supabase
+                .from('polls')
+                .delete()
+                .eq('group_id', chatId);
+
+            if (deleteError) {
+                console.error('Error ending poll:', deleteError);
+            } else {
+                console.log('Poll ended successfully'); // Log success message
+            }
         }
     }
 };
@@ -129,7 +135,7 @@ const generatePollResultAnnouncement = (question, votes) => {
 
 ${results}
 
-🏆 **Winner:** ${capitalize(winningOption)} (${question}) 🎉
+🏆 **Winner:** ${capitalize(winningOption)} 🎉
     `;
 
     return pollResultsMessage.trim();

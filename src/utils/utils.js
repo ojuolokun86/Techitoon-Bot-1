@@ -1,3 +1,5 @@
+const supabase = require('../supabaseClient');
+
 // This file contains utility functions that assist with various tasks, such as formatting messages, logging errors, and managing user statistics.
 
 function formatMessage(message) {
@@ -18,19 +20,20 @@ function manageUserStats(userId, action) {
     // This could include incrementing message counts, tracking activity, etc.
 }
 
-function formatResponseWithHeaderFooter(text) {
+const formatResponseWithHeaderFooter = (message) => {
     return `
-🚀 𝙏𝙀𝘾𝙃𝙄𝙏𝙊𝙊𝙉 𝘽𝙊𝙏 🚀
+🚀 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 𝘽𝙤𝙩 🚀
 
-${text}
+${message}
+
 ━━━━━━━━━━━━━━━
   🤖 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 𝘼𝙄
 ━━━━━━━━━━━━━━━
-    `;
-}
+`;
+};
 
-const welcomeMessage = (user) => {
-    return `🔥 Welcome to Efootball Dynasty, @${user}! 🔥
+const welcomeMessage = (groupName, user) => {
+    return `🔥 Welcome to ${groupName}, @${user}! 🔥
 
 🏆 This is where legends rise, champions battle, and history is made! ⚽💥 Get ready for intense competitions, thrilling matches, and unforgettable moments on the pitch.
 
@@ -39,11 +42,11 @@ const welcomeMessage = (user) => {
 🔹 Tournaments? Leagues? Need Info? – DM the admin.
 🔹 Stay active, stay competitive, and most importantly… HAVE FUN!
 
-👑 Welcome to the Dynasty! Now, let’s make history! 🔥⚽`;
+👑 Welcome to the ${groupName}! Now, let’s make history! 🔥⚽`;
 };
 
-const updateUserStats = (user, command) => {
-    // Update user statistics logic
+const updateUserStats = async (userId, command) => {
+    // Implement the logic to update user statistics for commands
 };
 
 const showGroupStats = async (sock, chatId) => {
@@ -89,6 +92,26 @@ async function warnUser(sock, jid, user, reason) {
     console.log(`✅ Warned ${user} in ${jid}`);
 }
 
+async function isWelcomeMessageEnabled(chatId) {
+    try {
+        const { data, error } = await supabase
+            .from('group_settings')
+            .select('welcome_messages_enabled')
+            .eq('group_id', chatId)
+            .single();
+
+        if (error) {
+            console.error('Error fetching group settings:', error);
+            return false;
+        }
+
+        return data.welcome_messages_enabled;
+    } catch (error) {
+        console.error('Error checking welcome message setting:', error);
+        return false;
+    }
+}
+
 module.exports = {
     formatMessage,
     logError,
@@ -99,4 +122,5 @@ module.exports = {
     updateUserStats,
     showGroupStats,
     warnUser,
+    isWelcomeMessageEnabled,
 };

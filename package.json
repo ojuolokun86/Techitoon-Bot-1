@@ -12,10 +12,13 @@
     "@supabase/supabase-js": "^2.48.1",
     "@vitalets/google-translate-api": "^9.2.1",
     "@whiskeysockets/baileys": "^6.7.13",
-    "axios": "^0.24.0",
+    "axios": "^1.7.9",
     "dotenv": "^10.0.0",
     "node-cron": "^3.0.3",
     "node-schedule": "^2.1.1",
     "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15"
   }
 }

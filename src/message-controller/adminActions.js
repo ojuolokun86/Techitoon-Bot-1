@@ -1,59 +1,66 @@
+const supabase = require('../supabaseClient');
 const { formatResponseWithHeaderFooter } = require('../utils/utils');
 
-async function promoteUser(sock, chatId, message) {
+const enableBot = async (sock, chatId, sender) => {
     try {
-        const groupMetadata = await sock.groupMetadata(chatId);
-        const botNumber = "2348026977793@s.whatsapp.net"; // Your bot's number
-        const isBotAdmin = groupMetadata.participants.some(p => p.id === botNumber && (p.admin === 'admin' || p.admin === 'superadmin'));
+        const { data, error } = await supabase
+            .from('group_settings')
+            .upsert({ group_id: chatId, bot_enabled: true }, { onConflict: 'group_id' });
 
-        if (!isBotAdmin) {
-            console.log("❌ Bot is not an admin, cannot promote users.");
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("❌ Bot is not an admin, cannot promote users.") });
+        if (error) {
+            console.error('Error enabling bot:', error);
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error enabling bot.') });
             return;
         }
 
-        const mentionedParticipant = message.message.extendedTextMessage.contextInfo.mentionedJid[0]; // Get mentioned participant
-
-        if (!mentionedParticipant) {
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("❌ Please mention a user to promote.") });
-            return;
-        }
-
-        // Promote user to admin
-        await sock.groupParticipantsUpdate(chatId, [mentionedParticipant], 'promote');
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🎉 @${mentionedParticipant.split('@')[0]} has been promoted to admin!`), mentions: [mentionedParticipant] });
-    } catch (err) {
-        console.error("Error promoting user:", err);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("⚠️ Error promoting user.") });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('✅ Bot has been enabled in this group.') });
+        console.log(`✅ Bot enabled in group: ${chatId}`);
+    } catch (error) {
+        console.error('Error enabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error enabling bot.') });
     }
-}
+};
 
-async function demoteUser(sock, chatId, message) {
+const disableBot = async (sock, chatId, sender) => {
     try {
-        const groupMetadata = await sock.groupMetadata(chatId);
-        const botNumber = "2348026977793@s.whatsapp.net"; // Your bot's number
-        const isBotAdmin = groupMetadata.participants.some(p => p.id === botNumber && (p.admin === 'admin' || p.admin === 'superadmin'));
+        const { data, error } = await supabase
+            .from('group_settings')
+            .upsert({ group_id: chatId, bot_enabled: false }, { onConflict: 'group_id' });
 
-        if (!isBotAdmin) {
-            console.log("❌ Bot is not an admin, cannot demote users.");
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("❌ Bot is not an admin, cannot demote users.") });
+        if (error) {
+            console.error('Error disabling bot:', error);
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error disabling bot.') });
             return;
         }
 
-        const mentionedParticipant = message.message.extendedTextMessage.contextInfo.mentionedJid[0]; // Get mentioned participant
-
-        if (!mentionedParticipant) {
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("❌ Please mention a user to demote.") });
-            return;
-        }
-
-        // Demote user from admin
-        await sock.groupParticipantsUpdate(chatId, [mentionedParticipant], 'demote');
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`❌ @${mentionedParticipant.split('@')[0]} has been demoted from admin!`), mentions: [mentionedParticipant] });
-    } catch (err) {
-        console.error("Error demoting user:", err);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("⚠️ Error demoting user.") });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Bot has been disabled in this group.') });
+        console.log(`❌ Bot disabled in group: ${chatId}`);
+    } catch (error) {
+        console.error('Error disabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error disabling bot.') });
     }
-}
+};
 
-module.exports = { promoteUser, demoteUser };
+const promoteUser = async (sock, chatId, message) => {
+    const userId = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
+    try {
+        await sock.groupParticipantsUpdate(chatId, [userId], 'promote');
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`✅ User @${userId.split('@')[0]} has been promoted to admin.`), mentions: [userId] });
+    } catch (error) {
+        console.error('Error promoting user:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error promoting user.') });
+    }
+};
+
+const demoteUser = async (sock, chatId, message) => {
+    const userId = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
+    try {
+        await sock.groupParticipantsUpdate(chatId, [userId], 'demote');
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`❌ User @${userId.split('@')[0]} has been demoted from admin.`), mentions: [userId] });
+    } catch (error) {
+        console.error('Error demoting user:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error demoting user.') });
+    }
+};
+
+module.exports = { enableBot, disableBot, promoteUser, demoteUser };
