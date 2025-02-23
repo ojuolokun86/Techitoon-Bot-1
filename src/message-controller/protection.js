@@ -2,12 +2,34 @@ const { getGroupMetadata, deleteMessage, sendMessage, groupParticipantsUpdate } 
 const config = require('../config/config');
 const { formatResponseWithHeaderFooter } = require('../utils/utils');
 const warnings = {};  // Stores user warnings
-
-// Strong anti-link regex
-const LINK_REGEX = /(https?:\/\/\S+|www\.\S+|\S+\.(com|net|org|co|io|gg|xyz|ly|me|biz|info|shop|store|site|live|top|click|t.me))/;
+const supabase = require('../supabaseClient');
+const { warnUser } = require('./warning');
 
 // Sales-related keywords
-const SALES_KEYWORDS = ["swap", "sale", "buy", "sell", "exchange", "sales", "price", "deal"];
+const SALES_KEYWORDS = [
+    "sell", "selling", "for sale", "buy", "buying", "purchase", "price", "cost", "available for sale", "discount", "offer", "best price",
+    "swap", "swapping", "exchange", "trading", "trade", "account swap", "account trade", "account exchange",
+    "who wants to buy?", "i'm selling my account", "dm me to buy", "looking to sell", "account for sale", "who wants to swap?", "exchange offer", "willing to trade", "selling cheap"
+];
+
+// Link detection regex
+const linkRegex = /((https?:\/\/|www\.)[^\s]+|chat\.whatsapp\.com\/[^\s]+|t\.me\/[^\s]+|bit\.ly\/[^\s]+|[\w-]+\.(com|net|org|info|biz|xyz|live|tv|me|link)(\/\S*)?)/gi;
+
+function containsObfuscatedLink(message) {
+    const obfuscatedPatterns = [
+        /\bhttps?\s*:\s*\/\s*\/\b/i,  // h t t p : / /
+        /\bwww\s*\.\s*\b/i,          // w w w .
+        /\b[^\s]+\s*\[\s*dot\s*\]\s*[a-z]+\b/i,  // example [dot] com
+        /\bhxxp/i,                   // hxxp instead of http
+        /\bhttp?\s*[:\(\[]/i         // http( or http[
+    ];
+
+    return obfuscatedPatterns.some(pattern => pattern.test(message));
+}
+
+function shouldDeleteMessage(message) {
+    return linkRegex.test(message) || containsObfuscatedLink(message);
+}
 
 // Check if the user is an admin
 async function isAdmin(sock, chatId, userId) {
@@ -20,12 +42,42 @@ async function isAdmin(sock, chatId, userId) {
     }
 }
 
-// Handle anti-link protection
-async function handleAntiLink(sock, message) {
+// Function to check if a link is allowed
+async function isAllowedLink(sock, text, sender, isAdmin) {
+    const botNumber = config.botNumber; // Your bot number
+    const ownerNumber = config.botOwnerId; // Your number
+
+    // Check if the link is saved in Supabase
+    const { data, error } = await supabase
+        .from('saved_links')
+        .select('link')
+        .eq('link', text)
+        .single();
+
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error checking saved link:', error);
+    }
+
+    return data || isAdmin || sender === ownerNumber || sender === botNumber;
+}
+
+// Function to detect links
+function containsLink(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    return urlRegex.test(text);
+}
+
+// Check for links in messages
+async function checkForLinks(sock, message) {
     try {
         const chatId = message.key.remoteJid;
         const participant = message.key.participant || chatId;  // Either the participant or the group chat ID
-        const botNumber = "2348026977793@s.whatsapp.net";  // Your bot number
+        const botNumber = config.botNumber;  // Your bot number
+
+        // Skip link check for messages sent by the bot
+        if (participant === botNumber) {
+            return;
+        }
 
         // Check if the bot and user are admins
         const botAdmin = await isAdmin(sock, chatId, botNumber);
@@ -37,25 +89,20 @@ async function handleAntiLink(sock, message) {
         }
 
         // Check if the message contains a link
-        const messageText = message.message.conversation || message.message.extendedTextMessage?.text || message.message.imageMessage?.caption || '';
-        if (LINK_REGEX.test(messageText)) {
-            if (userAdmin) {
-                console.log(`✅ Admin ${participant} posted a link. No action taken.`);
-                return;  // Allow admins to post links
+        const msgText = message.message.conversation || message.message.extendedTextMessage?.text || message.message.imageMessage?.caption || '';
+        if (shouldDeleteMessage(msgText)) {
+            const isAllowed = await isAllowedLink(sock, msgText, participant, userAdmin);
+            if (isAllowed) {
+                console.log(`✅ Allowed link posted by ${participant}. No action taken.`);
+                return;  // Allow saved links, admin links, and bot/owner links
             }
 
             // Delete the message and warn the user
             await sock.sendMessage(chatId, { delete: message.key });
-            warnings[participant] = (warnings[participant] || 0) + 1;
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`⚠️ Warning ${warnings[participant]}/3: No links allowed, @${participant.split('@')[0]}!`) });
-
-            // Remove user if they reach 3 warnings
-            if (warnings[participant] >= 3) {
-                await sock.groupParticipantsUpdate(chatId, [participant], 'remove');
-            }
+            await warnUser(sock, chatId, participant, 'Shared a link');
         }
     } catch (err) {
-        console.error("Error handling anti-link:", err);
+        console.error("Error checking for links:", err);
     }
 }
 
@@ -64,7 +111,7 @@ async function checkSalesMedia(sock, message) {
     try {
         const chatId = message.key.remoteJid;
         const participant = message.key.participant || chatId;  // Either the participant or the group chat ID
-        const botNumber = "2348026977793@s.whatsapp.net";  // Your bot number
+        const botNumber = config.botNumber;  // Your bot number
 
         // Check if the bot and user are admins
         const botAdmin = await isAdmin(sock, chatId, botNumber);
@@ -85,17 +132,64 @@ async function checkSalesMedia(sock, message) {
 
             // Delete the message and warn the user
             await sock.sendMessage(chatId, { delete: message.key });
-            warnings[participant] = (warnings[participant] || 0) + 1;
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`⚠️ Warning ${warnings[participant]}/2: No sales or swap posts allowed, @${participant.split('@')[0]}.`) });
-
-            // Remove user if they reach 2 warnings
-            if (warnings[participant] >= 2) {
-                await sock.groupParticipantsUpdate(chatId, [participant], 'remove');
-            }
+            await warnUser(sock, chatId, participant, 'Posted a sales or swap message');
         }
     } catch (err) {
         console.error("Error checking sales media:", err);
     }
 }
 
-module.exports = { handleAntiLink, checkSalesMedia };
+// Check for account-related sales messages
+async function checkAccountSales(sock, message) {
+    try {
+        const chatId = message.key.remoteJid;
+        const participant = message.key.participant || chatId;  // Either the participant or the group chat ID
+        const botNumber = config.botNumber;  // Your bot number
+
+        // Check if the bot and user are admins
+        const botAdmin = await isAdmin(sock, chatId, botNumber);
+        const userAdmin = await isAdmin(sock, chatId, participant);
+
+        if (!botAdmin) {
+            console.log("❌ Bot is not an admin, cannot delete messages.");
+            return;
+        }
+
+        // Check if the message contains account-related sales keywords
+        const msgText = message.message.conversation?.toLowerCase() || message.message.extendedTextMessage?.text?.toLowerCase() || '';
+        if (msgText.includes('account') && SALES_KEYWORDS.some(word => msgText.includes(word))) {
+            if (userAdmin) {
+                console.log(`✅ Admin ${participant} posted account-related sales content. No action taken.`);
+                return;  // Allow admins to post account-related sales stuff
+            }
+
+            // Delete the message and warn the user
+            await sock.sendMessage(chatId, { delete: message.key });
+            await warnUser(sock, chatId, participant, 'Posted an account-related sales or swap message');
+        }
+    } catch (err) {
+        console.error("Error checking account sales messages:", err);
+    }
+}
+
+const handleIncomingMessages = async (sock, message) => {
+    if (!message || !message.key || !message.message) {
+        console.error('Invalid message object:', message);
+        return;
+    }
+
+    const chatId = message.key.remoteJid;
+    const sender = message.key.participant || message.key.remoteJid;
+    const msgText = message.message.conversation || message.message.extendedTextMessage?.text || '';
+
+    // Check for links, sales messages, or account-related sales messages
+    if (containsLink(msgText)) {
+        await checkForLinks(sock, message);
+    } else if (SALES_KEYWORDS.some(word => msgText.toLowerCase().includes(word))) {
+        await checkSalesMedia(sock, message);
+    } else if (msgText.toLowerCase().includes('account')) {
+        await checkAccountSales(sock, message);
+    }
+};
+
+module.exports = { handleIncomingMessages };

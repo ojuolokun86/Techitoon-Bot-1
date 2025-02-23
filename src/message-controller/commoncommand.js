@@ -1,102 +1,140 @@
-const { formatResponseWithHeaderFooter, showGroupStats } = require('../utils/utils');
+const supabase = require('../supabaseClient');
+const { formatResponseWithHeaderFooter } = require('../utils/utils');
 
-const helpText = `
-📌 **Techitoon bot Commands:**
+const sendGroupRules = async (sock, chatId) => {
+    const { data, error } = await supabase
+        .from('group_settings')
+        .select('group_rules')
+        .eq('group_id', chatId)
+        .single();
 
-✅ \`.ping\` - Check bot status 🟢  
-✅ \`.help\` - Show this menu ❓  
-✅ \`.joke\` - Get a random joke 😂  
-✅ \`.quote\` - Get an inspirational quote 💡  
-✅ \`.weather [city]\` - Get weather info for a city 🌦️  
-
-**Scheduling Commands:**
-⏰ \`.schedule [time] [message]\` - Schedule a message at a specific time 📅  
-⏰ \`.remind [time] [message]\` - Set a reminder ⏲️  
-❌ \`.cancelschedule [message_id]\` - Cancel a scheduled message 🔕  
-❌ \`.cancelreminder\` - Cancel your active reminder 🔔
-
-**Polls & Voting:**
-📊 \`.poll [question] [option1] [option2] ...\` - Create a poll 📋  
-✅ \`.vote [option]\` - Cast your vote 🗳️  
-🏁 \`.endpoll\` - End the poll and show results
-
-**Events & Tournaments:**
-🏆 \`.starttournament [name] [date]\` - Start a tournament 🎮  
-🏆 \`.endtournament [name]\` - End a tournament 🏁  
-📅 \`.tournamentstatus\` - View current tournament status 🏅
-
-**Admin Commands:**
-🔐 \`.clearwarns @user\` - Clear warnings for a user 🧹  
-📢 \`.setannouncement [message]\` - Set a custom announcement 📣  
-🚫 \`.warn @user [reason]\` - Issue a warning ⚠️  
-🚷 \`.kick @user\` - Kick a user from the group 🚪  
-🚫 \`.ban @user\` - Ban a user from the group 🚫  
-🔓 \`.unban @user\` - Unban a previously banned user 🔓
-
-**Group Commands:**
-🔹 \`.tagall [message]\` - Mention everyone in the group and send a message 📢  
-🔹 \`.mute\` - Mute the group 🔇  
-🔹 \`.unmute\` - Unmute the group 🔊  
-🔹 \`.announce [message]\` - Start announcement (every 30 mins) 📣  
-🔹 \`.announce stop\` - Stop announcement ❌  
-🔹 \`.lock\` - Restrict chat to admins only 👑  
-🔹 \`.unlock\` - Allow all members to chat 🗣️  
-🔹 \`.clear\` - Clear the chat 🧹  
-🔹 \`.setgrouprules [rules]\` - Set group rules 📜  
-🔹 \`.settournamentrules [rules]\` - Set tournament rules 🏆  
-🔹 \`.setlanguage [language]\` - Set bot language 🌐  
-🔹 \`.showstats\` - Show group statistics 📊  
-🔹 \`.startwelcome\` - Enable welcome messages 🎉  
-🔹 \`.stopwelcome\` - Disable welcome messages ❌  
-🔹 \`.enable\` - Enable the bot in this group ✅  
-🔹 \`.disable\` - Disable the bot in this group ⛔  
-`;
-
-const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(helpText) });
-};
-
-const sendJoke = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('😂 Here is a joke for you!') });
-};
-
-const sendQuote = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('💬 Here is a quote for you!') });
+    if (error || !data.group_rules) {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('No group rules set.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 *Group Rules*:\n${data.group_rules}`) });
+    }
 };
 
 const listAdmins = async (sock, chatId) => {
     const groupMetadata = await sock.groupMetadata(chatId);
     const admins = groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin');
-    const adminList = admins.map(admin => `- @${admin.id.split('@')[0]}`).join('\n');
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`👮 *Group Admins*:\n${adminList}`), mentions: admins.map(admin => admin.id) });
+    const adminList = admins.map(admin => `@${admin.id.split('@')[0]}`).join('\n');
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`👑 *Group Admins*:\n${adminList}`), mentions: admins.map(admin => admin.id) });
 };
 
 const sendGroupInfo = async (sock, chatId) => {
     const groupMetadata = await sock.groupMetadata(chatId);
     const groupInfo = `
-📄 *Group Info*:
+📋 *Group Info*:
 - Name: ${groupMetadata.subject}
 - Description: ${groupMetadata.desc}
 - Created At: ${new Date(groupMetadata.creation * 1000).toLocaleString()}
-- Participants: ${groupMetadata.participants.length}
+- Total Members: ${groupMetadata.participants.length}
     `;
     await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(groupInfo) });
 };
 
-const sendGroupRules = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📜 Here are the group rules!') });
+const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
+    const helpText = `
+📜✨ 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 𝘽𝙤𝙩 𝙈𝙚𝙣𝙪 ✨📜
+🔹 Your friendly AI assistant, here to serve! 🤖
+
+💡 General Commands:
+📍 .ping – Am I alive? Let’s find out! ⚡
+📍 .menu – Shows this awesome menu! 📜
+📍 .joke – Need a laugh? I got you! 😂
+📍 .quote – Get inspired with a random quote! ✨
+📍 .weather <city> – Check the skies before you step out! ☁️🌦️
+📍 .translate <text> – Lost in translation? I’ll help! 🈶➡️🇬🇧
+
+👑 Admin Commands (Boss Mode Activated!)
+🛠️ .admin – See who’s running the show! 🏆
+📊 .info – Get group details in one click! 🕵️‍♂️
+📜 .rules – Read the sacred laws of the group! 📖
+🧹 .clear – Wipe the chat clean! 🚮 (Admin Only)
+🚫 .ban @user – Send someone to exile! 👋 (Admin Only)
+🎤 .tagall – Summon all group members! 🏟️ (Admin Only)
+🔇 .mute – Silence! Only admins can speak! 🤫 (Admin Only)
+🔊 .unmute – Let the people speak again! 🎙️ (Admin Only)
+📢 .announce <message> – Make a grand announcement! 📡 (Admin Only)
+🚫 .stopannounce – End announcement mode! ❌ (Admin Only)
+
+📅 Scheduling & Reminders:
+⏳ .schedule <message> – Set a future message! ⏰ (Admin Only)
+🔔 .remind <message> – Never forget important stuff! 📝 (Admin Only)
+❌ .cancelschedule – Abort mission! Stop scheduled messages! 🚀 (Admin Only)
+❌ .cancelreminder – Forget the reminder! 🚫 (Admin Only)
+
+📊 Polls & Tournaments:
+📊 .poll <question> – Let democracy decide! 🗳️ (Admin Only)
+🗳️ .vote <option> – Cast your vote like a good citizen! ✅
+🏁 .endpoll – Wrap up the poll and declare the winner! 🎉 (Admin Only)
+⚽ .starttournament – Let the games begin! 🏆 (Admin Only)
+🏁 .endtournament – Close the tournament! 🏅 (Admin Only)
+📢 .tournamentstatus – Check who’s winning! 📊
+
+⚙️ Group & Bot Settings:
+📝 .setgrouprules <rules> – Set the laws of the land! 📜 (Admin Only)
+📜 .settournamentrules <rules> – Define tournament rules! ⚽ (Admin Only)
+🈯 .setlanguage <language> – Change the bot’s language! 🌍 (Admin Only)
+📊 .showstats – Who’s been the most active? 📈 (Admin Only)
+❌ .delete – Erase unwanted messages! 🔥 (Admin Only)
+🚀 .enable – Power up the bot! ⚡
+🛑 .disable – Shut me down… but why? 😢
+🎉 .startwelcome – Activate welcome messages! 🎊 (Admin Only)
+🚫 .stopwelcome – No more welcome hugs! 🙅‍♂️ (Admin Only)
+
+⚠️ Warnings & Moderation:
+🚨 .warn @user <reason> – Issue a formal warning! ⚠️ (Admin Only)
+📜 .listwarn – Check the troublemakers! 👀 (Admin Only)
+❌ .resetwarn @user – Forgive and forget! ✝️ (Admin Only)
+
+🛠 Custom Commands & Links:
+🆕 .addcommand <accessLevel> <command> <response> – Create custom commands! 🛠️ (Admin Only)
+❌ .deletecommand <command> – Remove custom commands! 🗑️ (Admin Only)
+🔗 .savelink <title> <link> – Save important links! 📌 (Admin Only)
+📤 .sharelink <title> – Share saved links! 🔗
+🗑️ .deletelink <title> – Remove saved links! 🚮 (Admin Only)
+🛑 .stoplink – Stop reposting the shared link! 🚫
+
+💡 Use commands wisely! Or the bot might just develop a mind of its own… 🤖💀
+
+🚀 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 - Making WhatsApp Chats Smarter! 🚀
+    `;
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(helpText) });
 };
 
-const showAllGroupStats = async (sock, chatId) => {
-    await showGroupStats(sock, chatId);
+const enableBot = async (sock, chatId) => {
+    const { error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, bot_enabled: true }, { onConflict: 'group_id' });
+
+    if (error) {
+        console.error('Error enabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Unable to enable the bot. Please try again later.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('✅ Bot has been enabled in this group.') });
+    }
+};
+
+const disableBot = async (sock, chatId) => {
+    const { error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, bot_enabled: false }, { onConflict: 'group_id' });
+
+    if (error) {
+        console.error('Error disabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Unable to disable the bot. Please try again later.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🛑 Bot has been disabled in this group.') });
+    }
 };
 
 module.exports = {
-    sendHelpMenu,
-    sendJoke,
-    sendQuote,
+    sendGroupRules,
     listAdmins,
     sendGroupInfo,
-    sendGroupRules,
-    showAllGroupStats,
+    sendHelpMenu,
+    enableBot,
+    disableBot,
 };

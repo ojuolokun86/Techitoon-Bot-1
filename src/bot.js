@@ -7,9 +7,19 @@ const commonCommands = require('./message-controller/commoncommand');
 const scheduleCommands = require('./message-controller/scheduleMessage');
 const pollCommands = require('./message-controller/polls');
 const tournamentCommands = require('./message-controller/tournaments');
-const { handleAntiLink, checkSalesMedia } = require('./message-controller/protection');
 const { promoteUser, demoteUser } = require('./message-controller/adminActions');
+const { warnUser, listWarnings, resetWarnings, kickUser } = require('./message-controller/warning');
+const { addCommand, callCommand, deleteCommand } = require('./message-controller/commands');
+const { saveLink, shareLink, deleteLink, listLinks, getSavedLinks } = require('./message-controller/links');
 const supabase = require('./supabaseClient');
+const storeAuthState = require('../auth/storeAuthState'); // Corrected file path
+const retrieveAuthState = require('../auth/retrieveAuthState'); // Corrected file path
+const { showAllGroupStats } = require('./message-controller/commonCommands');
+const cron = require('node-cron');
+
+const botNumber = "2348026977793@s.whatsapp.net";  // Your bot number
+
+const scheduledTasks = {};
 
 const handleIncomingMessages = async (sock, m) => {
     try {
@@ -35,12 +45,14 @@ const handleIncomingMessages = async (sock, m) => {
             .eq('group_id', chatId)
             .single();
 
-        if (error || !groupSettings.bot_enabled) {
+        if (error || !groupSettings || !groupSettings.bot_enabled) {
             if (msgText.trim().startsWith(config.botSettings.commandPrefix)) {
                 const args = msgText.trim().split(/ +/);
                 const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
                 if (command === 'enable' && sender === config.botOwnerId) {
-                    await adminCommands.enableBot(sock, chatId);
+                    await commonCommands.enableBot(sock, chatId);
+                } else if (command === 'disable' && sender === config.botOwnerId) {
+                    await commonCommands.disableBot(sock, chatId);
                 } else {
                     await sock.sendMessage(chatId, {
                         text: formatResponseWithHeaderFooter('Oops! 🤖 The bot is currently disabled in this group. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏'),
@@ -58,8 +70,7 @@ const handleIncomingMessages = async (sock, m) => {
 
         if (!msgText.trim().startsWith(config.botSettings.commandPrefix)) {
             console.log('🛑 Ignoring non-command message');
-            await handleAntiLink(sock, message);
-            await checkSalesMedia(sock, message);
+            await handleProtectionMessages(sock, message);
 
             // Handle .delete command for quoted messages
             if (message.message?.extendedTextMessage?.contextInfo?.quotedMessage && msgText.trim().toLowerCase() === '.delete') {
@@ -98,7 +109,7 @@ const handleIncomingMessages = async (sock, m) => {
             }
         }
 
-        const adminCommandSet = new Set(['ban', 'tagall', 'mute', 'unmute', 'announce', 'stopannounce', 'schedule', 'listscheduled', 'pin', 'unpin', 'clear', 'setgrouprules', 'settournamentrules', 'setlanguage', 'showstats', 'delete', 'startwelcome', 'stopwelcome', 'promote', 'demote', 'enable', 'disable']);
+        const adminCommandSet = new Set(['ban', 'tagall', 'mute', 'unmute', 'announce', 'stopannounce', 'schedule', 'listscheduled', 'pin', 'unpin', 'clear', 'setgrouprules', 'settournamentrules', 'setlanguage', 'showstats', 'delete', 'startwelcome', 'stopwelcome', 'promote', 'demote', 'enable', 'disable', 'warn', 'listwarn', 'resetwarn', 'addcommand', 'deletecommand', 'savelink', 'sharelink', 'deletelink', 'listlinks']);
 
         if (adminCommandSet.has(command)) {
             if (!isGroup) {
@@ -119,7 +130,7 @@ const handleIncomingMessages = async (sock, m) => {
             case 'ping':
                 await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🏓 Pong! Bot is active.') });
                 break;
-            case 'help':
+            case 'menu':
                 await commonCommands.sendHelpMenu(sock, chatId, isGroup, isAdmin);
                 break;
             case 'joke':
@@ -168,7 +179,11 @@ const handleIncomingMessages = async (sock, m) => {
                 await adminCommands.stopAnnouncement(sock, chatId);
                 break;
             case 'announce':
-                await adminCommands.startAnnouncement(sock, chatId, args.join(' '));
+                if (args[0] === 'stop') {
+                    await adminCommands.stopAnnouncement(sock, chatId);
+                } else {
+                    await adminCommands.startAnnouncement(sock, chatId, args.join(' '));
+                }
                 break;
             case 'stopannounce':
                 await adminCommands.stopAnnouncement(sock, chatId);
@@ -213,7 +228,7 @@ const handleIncomingMessages = async (sock, m) => {
                 await adminCommands.setLanguage(sock, chatId, args);
                 break;
             case 'showstats':
-                await commonCommands.showAllGroupStats(sock, chatId);
+                await showAllGroupStats(sock, chatId);
                 break;
             case 'delete':
                 await adminCommands.deleteMessage(sock, chatId, message);
@@ -236,8 +251,46 @@ const handleIncomingMessages = async (sock, m) => {
             case 'demote':
                 await demoteUser(sock, chatId, message);
                 break;
+            case 'warn':
+                const userId = args[0].replace('@', '') + '@s.whatsapp.net';
+                const reason = args.slice(1).join(' ') || 'No reason provided';
+                await warnUser(sock, chatId, userId, reason);
+                break;
+            case 'listwarn':
+                await listWarnings(sock, chatId);
+                break;
+            case 'resetwarn':
+                const resetUserId = args[0].replace('@', '') + '@s.whatsapp.net';
+                await resetWarnings(sock, chatId, resetUserId);
+                break;
+            case 'addcommand':
+                const [accessLevel, cmd, ...responseParts] = args;
+                const response = responseParts.join(' ');
+                const functionName = responseParts.pop(); // Get the last argument as the function name
+                await addCommand(sock, chatId, cmd, response, accessLevel, functionName);
+                break;
+            case 'deletecommand':
+                const delCommand = args[0];
+                await deleteCommand(sock, chatId, delCommand);
+                break;
+            case 'savelink':
+                await saveLink(sock, chatId, args);
+                break;
+            case 'sharelink':
+                await botCommands.handleShareLinkCommand(sock, chatId);
+                break;
+            case 'stoplink':
+                await botCommands.handleStopLinkCommand(sock, chatId);
+                break;
+            case 'deletelink':
+                const deleteTitle = args.join(' ');
+                await deleteLink(sock, chatId, deleteTitle);
+                break;
+            case 'listlinks':
+                await listLinks(sock, chatId);
+                break;
             default:
-                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Unknown command! Use .help for commands list.') });
+                await callCommand(sock, chatId, command);
         }
 
         // Update user statistics for commands
@@ -247,12 +300,78 @@ const handleIncomingMessages = async (sock, m) => {
     }
 };
 
-module.exports.startBot = (sock) => {
+const handleProtectionMessages = async (sock, message) => {
+    if (!message || !message.key || !message.message) {
+        console.error('Invalid message object:', message);
+        return;
+    }
+
+    const msgText = message.message?.conversation || message.message?.extendedTextMessage?.text || '';
+    const chatId = message.key.remoteJid;
+    const sender = message.key.participant || message.key.remoteJid;
+
+    // Check if the user is an admin or the bot owner
+    const groupMetadata = await sock.groupMetadata(chatId);
+    const isAdmin = groupMetadata.participants.some(p =>
+        p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin')
+    );
+    const isBotOwner = sender === config.botOwnerId;
+
+    // Anti-Link Protection
+    const linkRegex = /(https?:\/\/[^\s]+)/g;
+    const links = msgText.match(linkRegex);
+    if (links) {
+        const { data: savedLinks, error } = await getSavedLinks(chatId);
+        if (error) {
+            console.error('Error fetching saved links:', error);
+            return;
+        }
+
+        const isSavedLink = links.some(link => savedLinks.some(savedLink => savedLink.url === link));
+        if (!isSavedLink && !isAdmin && !isBotOwner) {
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🚫 Links are not allowed in this group.') });
+            await sock.sendMessage(chatId, { delete: { id: message.key.id, remoteJid: chatId, fromMe: false } });
+            await warnUser(sock, chatId, sender, 'Shared a link');
+            return;
+        }
+    }
+
+    // Anti-Sales Protection
+    const salesKeywords = [
+        'sell', 'selling', 'for sale', 'buy', 'buying', 'purchase', 'price', 'cost', 'available for sale', 'discount', 'offer', 'best price',
+        'swap', 'swapping', 'exchange', 'trading', 'trade', 'account swap', 'account trade', 'account exchange',
+        'who wants to buy?', 'i\'m selling my account', 'dm me to buy', 'looking to sell', 'account for sale', 'who wants to swap?', 'exchange offer', 'willing to trade', 'selling cheap'
+    ];
+
+    const salesRegex = new RegExp(salesKeywords.join('|'), 'i');
+    if (salesRegex.test(msgText) && !isAdmin && !isBotOwner) {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🚫 Sales and swaps are not allowed in this group.') });
+        await sock.sendMessage(chatId, { delete: { id: message.key.id, remoteJid: chatId, fromMe: false } });
+        await warnUser(sock, chatId, sender, 'Posted a sales or swap message');
+        return;
+    }
+};
+
+module.exports.startBot = async (sock) => {
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    const authState = await retrieveAuthState(botNumber);
+
+    if (authState) {
+        state.creds = authState;
+    }
+
+    sock.ev.on('creds.update', async (creds) => {
+        await storeAuthState(botNumber, creds);
+        await saveCreds();
+    });
+
     sock.ev.on('messages.upsert', async (m) => {
+        console.log('📩 New message upsert:', m);
         await handleIncomingMessages(sock, m);
     });
 
     sock.ev.on('group-participants.update', async (update) => {
+        console.log('👥 Group participants update:', update);
         const chat = await sock.groupMetadata(update.id);
         const contact = update.participants[0];
         const user = contact.split('@')[0];
@@ -267,4 +386,14 @@ module.exports.startBot = (sock) => {
             console.log(`👋 Sent welcome message to ${user}`);
         }
     });
+
+    // Schedule task to repost the shared link every 2 hours
+    cron.schedule('0 */2 * * *', async () => {
+        const chatId = 'YOUR_GROUP_CHAT_ID'; // Replace with your group chat ID
+        const sharedLink = 'YOUR_SHARED_LINK'; // Replace with the link you want to share
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🔗 Check out this link: ${sharedLink}`) });
+        console.log('🔄 Reposted the shared link.');
+    });
+
+    console.log('✅ Bot is ready and listening for messages.');
 };

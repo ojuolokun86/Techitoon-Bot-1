@@ -3,10 +3,7 @@ const { formatResponseWithHeaderFooter, welcomeMessage } = require('../utils/uti
 const supabase = require('../supabaseClient');
 
 const scheduledMessages = [];
-
-const scheduleMessage = async (sock, chatId, args) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📅 Message scheduled.') });
-};
+const announcementIntervals = {};
 
 const clearChat = async (sock, chatId) => {
     await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🧹 Chat cleared by admin.') });
@@ -25,11 +22,27 @@ const tagAll = async (sock, chatId, message, sender) => {
 };
 
 const startAnnouncement = async (sock, chatId, message) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📢 Announcement started: ${message}`) });
+    try {
+        // Send announcement message
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📢 Announcement: ${message}`) });
+    } catch (error) {
+        console.error('Error starting announcement:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error starting the announcement.') });
+    }
 };
 
 const stopAnnouncement = async (sock, chatId) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📢 Announcement stopped.') });
+    try {
+        // Send stop announcement message
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📢 Announcement has ended.') });
+    } catch (error) {
+        console.error('Error stopping announcement:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error stopping the announcement.') });
+    }
+};
+
+const scheduleMessage = async (sock, chatId, args) => {
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📅 Message scheduled.') });
 };
 
 const listScheduledMessages = async (sock, chatId) => {
@@ -45,11 +58,29 @@ const unpinMessage = async (sock, chatId) => {
 };
 
 const setGroupRules = async (sock, chatId, rules) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 Group rules set: ${rules}`) });
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, group_rules: rules }, { onConflict: 'group_id' });
+
+    if (error) {
+        console.error('Error setting group rules:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not set group rules.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 Group rules set: ${rules}`) });
+    }
 };
 
 const setTournamentRules = async (sock, chatId, rules) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 Tournament rules set: ${rules}`) });
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, tournament_rules: rules }, { onConflict: 'group_id' });
+
+    if (error) {
+        console.error('Error setting tournament rules:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not set tournament rules.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`📜 Tournament rules set: ${rules}`) });
+    }
 };
 
 const setLanguage = async (sock, chatId, args) => {
@@ -99,32 +130,6 @@ const stopWelcome = async (sock, chatId) => {
     }
 };
 
-const enableBot = async (sock, chatId) => {
-    const { data, error } = await supabase
-        .from('group_settings')
-        .upsert({ group_id: chatId, bot_enabled: true }, { onConflict: 'group_id' });
-
-    if (error) {
-        console.error('Error enabling bot:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not enable the bot.') });
-    } else {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('✅ Bot has been enabled for this group.') });
-    }
-};
-
-const disableBot = async (sock, chatId) => {
-    const { data, error } = await supabase
-        .from('group_settings')
-        .upsert({ group_id: chatId, bot_enabled: false }, { onConflict: 'group_id' });
-
-    if (error) {
-        console.error('Error disabling bot:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not disable the bot.') });
-    } else {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Bot has been disabled for this group.') });
-    }
-};
-
 module.exports = {
     clearChat,
     tagAll,
@@ -141,6 +146,4 @@ module.exports = {
     deleteMessage,
     startWelcome,
     stopWelcome,
-    enableBot,
-    disableBot,
 };

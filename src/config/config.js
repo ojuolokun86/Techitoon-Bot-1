@@ -1,14 +1,14 @@
 require('dotenv').config();
 
 const config = {
-    botOwnerId: "2348026977793@s.whatsapp.net",
+    botOwnerId: process.env.ADMIN_NUMBER,
     adminNumber: "2348026977793@s.whatsapp.net", // Replace with your actual number
     apiKeys: {
         weatherApiKey: process.env.WEATHER_API_KEY,
         translationApiKey: process.env.TRANSLATION_API_KEY,
     },
     botSettings: {
-        commandPrefix: ".",  // Ensure this is correctly set
+        commandPrefix: process.env.PREFIX || '.',  // Ensure this is correctly set
         responseDelay: 1000, // Delay in milliseconds for bot responses
         maxWarnings: 2, // Maximum number of warnings before kicking the user
         enabled: false, // Bot starts in disabled mode

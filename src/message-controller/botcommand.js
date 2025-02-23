@@ -2,68 +2,82 @@ const axios = require('axios');
 const translate = require('@vitalets/google-translate-api');
 const config = require('../config/config');
 const { formatResponseWithHeaderFooter } = require('../utils/utils');
+const supabase = require('../supabaseClient');
+const cron = require('node-cron');
+
+let scheduledTasks = {};
 
 const handleWeatherCommand = async (sock, message, args) => {
-    const chatId = message.key.remoteJid;
     const city = args.join(' ');
-    if (!city) {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Please provide a city name.') });
-        return;
-    }
+    const apiKey = config.apiKeys.weatherApiKey;
+    const url = `http://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
 
-    // Fetch weather data from API (example)
-    const weatherData = await fetchWeatherData(city);
-    if (weatherData) {
-        const weatherText = `
-🌤️ *Weather in ${city}*:
-- Temperature: ${weatherData.temp}°C
-- Condition: ${weatherData.condition}
-        `;
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(weatherText) });
-    } else {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Unable to fetch weather data. Please try again later.') });
+    try {
+        const response = await axios.get(url);
+        const data = response.data;
+        const weatherInfo = `Weather in ${data.name}: ${data.weather[0].description}, Temperature: ${data.main.temp}°C`;
+        await sock.sendMessage(message.key.remoteJid, { text: formatResponseWithHeaderFooter(weatherInfo) });
+    } catch (error) {
+        await sock.sendMessage(message.key.remoteJid, { text: formatResponseWithHeaderFooter('Unable to get weather information. Please try again later.') });
     }
 };
 
 const handleTranslateCommand = async (sock, message, args) => {
-    const chatId = message.key.remoteJid;
-    const textToTranslate = args.join(' ');
-    if (!textToTranslate) {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Please provide text to translate.') });
-        return;
-    }
-
-    // Translate text using API (example)
-    const translatedText = await translateText(textToTranslate);
-    if (translatedText) {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🔤 *Translated Text*:\n${translatedText}`) });
-    } else {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Unable to translate text. Please try again later.') });
+    const text = args.join(' ');
+    try {
+        const res = await translate(text, { to: 'en' });
+        await sock.sendMessage(message.key.remoteJid, { text: formatResponseWithHeaderFooter(res.text) });
+    } catch (error) {
+        await sock.sendMessage(message.key.remoteJid, { text: formatResponseWithHeaderFooter('Unable to translate text. Please try again later.') });
     }
 };
 
-const enableBot = async (sock, chatId) => {
-    if (!config.enabledGroups.includes(chatId)) {
-        config.enabledGroups.push(chatId);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('✅ Bot enabled in this group.') });
-    } else {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Bot is already enabled in this group.') });
+const handleShareLinkCommand = async (sock, chatId) => {
+    try {
+        const { data: links, error } = await supabase
+            .from('saved_links')
+            .select('link')
+            .eq('group_id', chatId);
+
+        if (error || !links.length) {
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('No saved links found for this group.') });
+            return;
+        }
+
+        const link = links[0].link;
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🔗 Check out this link: ${link}`) });
+
+        // Schedule task to repost the link every 2 hours
+        if (scheduledTasks[chatId]) {
+            scheduledTasks[chatId].stop();
+        }
+
+        scheduledTasks[chatId] = cron.schedule('0 */2 * * *', async () => {
+            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🔗 Check out this link: ${link}`) });
+            console.log(`🔄 Reposted the shared link in ${chatId}.`);
+        });
+
+        console.log(`✅ Scheduled reposting of the link in ${chatId} every 2 hours.`);
+    } catch (error) {
+        console.error('Error sharing link:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('Unable to share the link. Please try again later.') });
     }
 };
 
-const disableBot = async (sock, chatId) => {
-    const index = config.enabledGroups.indexOf(chatId);
-    if (index > -1) {
-        config.enabledGroups.splice(index, 1);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Bot disabled in this group.') });
+const handleStopLinkCommand = async (sock, chatId) => {
+    if (scheduledTasks[chatId]) {
+        scheduledTasks[chatId].stop();
+        delete scheduledTasks[chatId];
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🔕 Stopped reposting the link.') });
+        console.log(`🛑 Stopped reposting the link in ${chatId}.`);
     } else {
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Bot is not enabled in this group.') });
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('No link reposting task found for this group.') });
     }
 };
 
 module.exports = {
     handleWeatherCommand,
     handleTranslateCommand,
-    enableBot,
-    disableBot,
+    handleShareLinkCommand,
+    handleStopLinkCommand,
 };

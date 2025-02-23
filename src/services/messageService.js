@@ -58,7 +58,71 @@ const handleIncomingMessages = async (sock, m) => {
                 await handleTranslateCommand(sock, msg, args);
                 break;
             case 'menu':
-                await sock.sendMessage(msg.key.remoteJid, { text: formatResponseWithHeaderFooter('📌 **Techitoon bot Commands:**\n\n✅ `.ping` - Check bot status 🟢\n✅ `.menu` - Show this menu ❓\n✅ `.joke` - Get a random joke 😂\n✅ `.quote` - Get an inspirational quote 💡\n✅ `.weather [city]` - Get weather info for a city 🌦️\n\n**Scheduling Commands:**\n⏰ `.schedule [time] [message]` - Schedule a message at a specific time 📅\n⏰ `.remind [time] [message]` - Set a reminder ⏲️\n❌ `.cancelschedule [message_id]` - Cancel a scheduled message 🔕\n❌ `.cancelreminder` - Cancel your active reminder 🔔\n\n**Polls & Voting:**\n📊 `.poll [question] [option1] [option2] ...` - Create a poll 📋\n✅ `.vote [option]` - Cast your vote 🗳️\n🏁 `.endpoll` - End the poll and show results\n\n**Events & Tournaments:**\n🏆 `.starttournament [name] [date]` - Start a tournament 🎮\n🏆 `.endtournament [name]` - End a tournament 🏁\n📅 `.tournamentstatus` - View current tournament status 🏅\n\n**Admin Commands:**\n🔐 `.clearwarns @user` - Clear warnings for a user 🧹\n📢 `.setannouncement [message]` - Set a custom announcement 📣\n🚫 `.warn @user [reason]` - Issue a warning ⚠️\n🚷 `.kick @user` - Kick a user from the group 🚪\n🚫 `.ban @user` - Ban a user from the group 🚫\n🔓 `.unban @user` - Unban a previously banned user 🔓\n\n**Group Commands:**\n🔹 `.tagall [message]` - Mention everyone in the group and send a message 📢\n🔹 `.mute` - Mute the group 🔇\n🔹 `.unmute` - Unmute the group 🔊\n🔹 `.announce [message]` - Start announcement (every 30 mins) 📣\n🔹 `.announce stop` - Stop announcement ❌\n🔹 `.lock` - Restrict chat to admins only 👑\n🔹 `.unlock` - Allow all members to chat 🗣️\n🔹 `.clear` - Clear the chat 🧹\n🔹 `.setgrouprules [rules]` - Set group rules 📜\n🔹 `.settournamentrules [rules]` - Set tournament rules 🏆\n🔹 `.setlanguage [language]` - Set bot language 🌐\n🔹 `.showstats` - Show group statistics 📊\n🔹 `.startwelcome` - Enable welcome messages 🎉\n🔹 `.stopwelcome` - Disable welcome messages ❌\n🔹 `.enable` - Enable the bot in this group ✅\n🔹 `.disable` - Disable the bot in this group ⛔\n\n━━━━━━━━━━━━━━━\n  🤖 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 𝘼𝙄\n━━━━━━━━━━━━━━━') });
+                await sock.sendMessage(msg.key.remoteJid, { text: formatResponseWithHeaderFooter(`
+📜✨ 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 𝘽𝙤𝙩 𝙈𝙚𝙣𝙪 ✨📜
+🔹 Your friendly AI assistant, here to serve! 🤖
+
+💡 General Commands:
+📍 .ping – Am I alive? Let’s find out! ⚡
+📍 .menu – Shows this awesome menu! 📜
+📍 .joke – Need a laugh? I got you! 😂
+📍 .quote – Get inspired with a random quote! ✨
+📍 .weather <city> – Check the skies before you step out! ☁️🌦️
+📍 .translate <text> – Lost in translation? I’ll help! 🈶➡️🇬🇧
+
+👑 Admin Commands (Boss Mode Activated!)
+🛠️ .admin – See who’s running the show! 🏆
+📊 .info – Get group details in one click! 🕵️‍♂️
+📜 .rules – Read the sacred laws of the group! 📖
+🧹 .clear – Wipe the chat clean! 🚮 (Admin Only)
+🚫 .ban @user – Send someone to exile! 👋 (Admin Only)
+🎤 .tagall – Summon all group members! 🏟️ (Admin Only)
+🔇 .mute – Silence! Only admins can speak! 🤫 (Admin Only)
+🔊 .unmute – Let the people speak again! 🎙️ (Admin Only)
+📢 .announce <message> – Make a grand announcement! 📡 (Admin Only)
+🚫 .stopannounce – End announcement mode! ❌ (Admin Only)
+
+📅 Scheduling & Reminders:
+⏳ .schedule <message> – Set a future message! ⏰ (Admin Only)
+🔔 .remind <message> – Never forget important stuff! 📝 (Admin Only)
+❌ .cancelschedule – Abort mission! Stop scheduled messages! 🚀 (Admin Only)
+❌ .cancelreminder – Forget the reminder! 🚫 (Admin Only)
+
+📊 Polls & Tournaments:
+📊 .poll <question> – Let democracy decide! 🗳️ (Admin Only)
+🗳️ .vote <option> – Cast your vote like a good citizen! ✅
+🏁 .endpoll – Wrap up the poll and declare the winner! 🎉 (Admin Only)
+⚽ .starttournament – Let the games begin! 🏆 (Admin Only)
+🏁 .endtournament – Close the tournament! 🏅 (Admin Only)
+📢 .tournamentstatus – Check who’s winning! 📊
+
+⚙️ Group & Bot Settings:
+📝 .setgrouprules <rules> – Set the laws of the land! 📜 (Admin Only)
+📜 .settournamentrules <rules> – Define tournament rules! ⚽ (Admin Only)
+🈯 .setlanguage <language> – Change the bot’s language! 🌍 (Admin Only)
+📊 .showstats – Who’s been the most active? 📈 (Admin Only)
+❌ .delete – Erase unwanted messages! 🔥 (Admin Only)
+🚀 .enable – Power up the bot! ⚡ (Admin Only)
+🛑 .disable – Shut me down… but why? 😢 (Admin Only)
+🎉 .startwelcome – Activate welcome messages! 🎊 (Admin Only)
+🚫 .stopwelcome – No more welcome hugs! 🙅‍♂️ (Admin Only)
+
+⚠️ Warnings & Moderation:
+🚨 .warn @user <reason> – Issue a formal warning! ⚠️ (Admin Only)
+📜 .listwarn – Check the troublemakers! 👀 (Admin Only)
+❌ .resetwarn @user – Forgive and forget! ✝️ (Admin Only)
+
+🛠 Custom Commands & Links:
+🆕 .addcommand <accessLevel> <command> <response> – Create custom commands! 🛠️ (Admin Only)
+❌ .deletecommand <command> – Remove custom commands! 🗑️ (Admin Only)
+🔗 .savelink <title> <link> – Save important links! 📌 (Admin Only)
+📤 .sharelink <title> – Share saved links! 🔗 (Admin Only)
+🗑️ .deletelink <title> – Remove saved links! 🚮 (Admin Only)
+
+💡 Use commands wisely! Or the bot might just develop a mind of its own… 🤖💀
+
+🚀 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 - Making WhatsApp Chats Smarter! 🚀
+                `) });
                 break;
             case 'showstats':
                 await showGroupStats(sock, msg.key.remoteJid);

@@ -80,6 +80,15 @@ const showGroupStats = async (sock, chatId) => {
     await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(statsText), mentions: participants.map(p => p.id) });
 };
 
+async function warnUser(sock, jid, user, reason) {
+    const warningMessage = `⚠️ Warning: ${reason}, @${user.split("@")[0]}.`;
+
+    // Send warning message
+    await sock.sendMessage(jid, { text: warningMessage, mentions: [user] });
+
+    console.log(`✅ Warned ${user} in ${jid}`);
+}
+
 module.exports = {
     formatMessage,
     logError,
@@ -89,4 +98,5 @@ module.exports = {
     welcomeMessage,
     updateUserStats,
     showGroupStats,
+    warnUser,
 };
