@@ -1,8 +1,8 @@
 require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { logInfo, logError } = require('./utils/logger');
-const { handleIncomingMessages } = require('./bot/messageHandler');
-const { handleGroupParticipantsUpdate } = require('./bot/groupHandler');
+const { handleIncomingMessages } = require('./message-controller/messageHandler');
+const { handleGroupParticipantsUpdate } = require('./message-controller/groupHandler');
 const config = require('./config/config');
 const supabase = require('./supabaseClient');
 

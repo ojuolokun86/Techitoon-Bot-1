@@ -34,7 +34,6 @@ const start = async () => {
         } else if (connection === 'open') {
             logInfo('Techitoon Bot is ready!');
             startBot(sock);
-            startSecurityBot(sock);
         }
     });
 

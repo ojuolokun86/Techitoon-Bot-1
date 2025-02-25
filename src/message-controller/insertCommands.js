@@ -13,10 +13,10 @@ const commands = [
     { command: 'clear', response: 'Chat cleared.', access_level: 'admin', function_name: 'clearChat' },
     { command: 'ban', response: 'User banned.', access_level: 'admin', function_name: 'banUser' },
     { command: 'tagall', response: 'Tagging all members.', access_level: 'admin', function_name: 'tagAll' },
-    { command: 'mute', response: 'Group muted.', access_level: 'admin', function_name: 'startAnnouncement' },
-    { command: 'unmute', response: 'Group unmuted.', access_level: 'admin', function_name: 'stopAnnouncement' },
+    { command: 'mute', response: 'Group muted.', access_level: 'admin', function_name: 'muteChat' },
+    { command: 'unmute', response: 'Group unmuted.', access_level: 'admin', function_name: 'unmuteChat' },
     { command: 'announce', response: 'Announcement started.', access_level: 'admin', function_name: 'startAnnouncement' },
-    { command: 'announce stop', response: 'Announcement stopped.', access_level: 'admin', function_name: 'stopAnnouncement' },
+    { command: 'stopannounce', response: 'Announcement stopped.', access_level: 'admin', function_name: 'stopAnnouncement' },
     { command: 'schedule', response: 'Message scheduled.', access_level: 'admin', function_name: 'scheduleMessage' },
     { command: 'remind', response: 'Reminder set.', access_level: 'admin', function_name: 'remind' },
     { command: 'cancelschedule', response: 'Schedule canceled.', access_level: 'admin', function_name: 'cancelSchedule' },
@@ -47,7 +47,10 @@ const commands = [
     { command: 'sharelink', response: 'Link shared.', access_level: 'all', function_name: 'handleShareLinkCommand' },
     { command: 'deletelink', response: 'Link deleted.', access_level: 'admin', function_name: 'deleteLink' },
     { command: 'listlinks', response: 'Listing links.', access_level: 'admin', function_name: 'listLinks' },
-    { command: 'stoplink', response: 'Stopped reposting the link.', access_level: 'all', function_name: 'handleStopLinkCommand' }
+    { command: 'stoplink', response: 'Stopped reposting the link.', access_level: 'admin', function_name: 'handleStopLinkCommand' },
+    { command: 'registeruser', response: 'User registered to team.', access_level: 'admin', function_name: 'registerUser' },
+    { command: 'lockchat', response: 'Chat locked.', access_level: 'admin', function_name: 'lockChat' },
+    { command: 'createchallongetournament', response: 'Challonge tournament created.', access_level: 'admin', function_name: 'createChallongeTournament' }
 ];
 
 const insertCommands = async () => {
@@ -56,12 +59,12 @@ const insertCommands = async () => {
 
         const { data, error } = await supabase
             .from('commands')
-            .insert([{
+            .upsert([{
                 command_name: command.command,
                 response: command.response,
                 access_level: command.access_level,
                 function_name: command.function_name
-            }]);
+            }], { onConflict: ['command_name'] });
 
         if (error) {
             console.error('Insert error:', error);

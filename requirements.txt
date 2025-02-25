@@ -1,0 +1,5 @@
+python-dotenv
+whiskeysockets
+supabase
+asyncio
+requests

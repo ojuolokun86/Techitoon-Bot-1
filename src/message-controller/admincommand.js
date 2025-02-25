@@ -83,8 +83,17 @@ const setTournamentRules = async (sock, chatId, rules) => {
     }
 };
 
-const setLanguage = async (sock, chatId, args) => {
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🌐 Language set.') });
+const setLanguage = async (sock, chatId, language) => {
+    const { data, error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, language }, { onConflict: 'group_id' });
+
+    if (error) {
+        console.error('Error setting language:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Could not set language.') });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🌐 Language set to: ${language}`) });
+    }
 };
 
 const banUser = async (sock, chatId, args) => {
@@ -130,6 +139,32 @@ const stopWelcome = async (sock, chatId) => {
     }
 };
 
+async function enableBot(sock, chatId, sender) {
+    const { error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, bot_enabled: true });
+
+    if (error) {
+        console.error('Error enabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("❌ Error enabling bot.") });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("✅ Bot enabled.") });
+    }
+}
+
+async function disableBot(sock, chatId, sender) {
+    const { error } = await supabase
+        .from('group_settings')
+        .upsert({ group_id: chatId, bot_enabled: false });
+
+    if (error) {
+        console.error('Error disabling bot:', error);
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("❌ Error disabling bot.") });
+    } else {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter("✅ Bot disabled.") });
+    }
+}
+
 module.exports = {
     clearChat,
     tagAll,
@@ -146,4 +181,6 @@ module.exports = {
     deleteMessage,
     startWelcome,
     stopWelcome,
+    enableBot,
+    disableBot,
 };
