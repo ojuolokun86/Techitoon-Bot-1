@@ -1,9 +1,12 @@
 const { formatResponseWithHeaderFooter } = require('../utils/utils');
-const { warnUser } = require('./warning');
+const { issueWarning } = require('./warning'); // Import issueWarning from warning.js
 const config = require('../config/config');
+const supabase = require('../supabaseClient');
 
 const salesKeywords = [
-    'sell', 'sale', 'selling', 'buy', 'buying', 'trade', 'trading', 'swap', 'swapping', 'exchange', 'price', 'available for sale', 'dm for price', 'account for sale', 'selling my account', 'who wants to buy', 'how much?', '$', '₦', 'paypal', 'btc'
+    'sell', 'sale', 'selling', 'buy', 'buying', 'trade', 'trading', 'swap', 'swapping', 'exchange', 'price',
+    'available for sale', 'dm for price', 'account for sale', 'selling my account', 'who wants to buy', 'how much?',
+    '$', '₦', 'paypal', 'btc'
 ];
 
 const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/[^\s]+|chat\.whatsapp\.com\/[^\s]+|t\.me\/[^\s]+|bit\.ly\/[^\s]+|[\w-]+\.(com|net|org|info|biz|xyz|live|tv|me|link)(\/\S*)?)/gi;
@@ -45,18 +48,22 @@ const showAllGroupStats = async (sock, chatId) => {
 
 const handleProtectionMessages = async (sock, message) => {
     try {
-        const msgText = message.message?.conversation || message.message?.extendedTextMessage?.text || message.message?.imageMessage?.caption || message.message?.videoMessage?.caption || '';
+        const msgText = message.message?.conversation || message.message?.extendedTextMessage?.text || 
+                        message.message?.imageMessage?.caption || message.message?.videoMessage?.caption || '';
         const chatId = message.key.remoteJid;
         const sender = message.key.participant || message.key.remoteJid;
 
         console.log(`Checking message for protection: ${msgText} from ${sender} in ${chatId}`);
 
-        // Log the configuration values
-        console.log(`Sales warning threshold: ${config.warningThreshold.sales}`);
-        console.log(`Links warning threshold: ${config.warningThreshold.links}`);
+        // Get group metadata to check admin status
+        let groupMetadata;
+        try {
+            groupMetadata = await sock.groupMetadata(chatId);
+        } catch (error) {
+            console.error('Error fetching group metadata:', error);
+            return;
+        }
 
-        // Check if the sender is an admin
-        const groupMetadata = await sock.groupMetadata(chatId);
         const isAdmin = groupMetadata.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
 
         if (isAdmin) {
@@ -64,30 +71,28 @@ const handleProtectionMessages = async (sock, message) => {
             return;
         }
 
-        // Check for sales keywords in media captions
+        // **Sales Content Detection**
         const containsSalesKeywords = salesKeywords.some(keyword => msgText.toLowerCase().includes(keyword));
         if (containsSalesKeywords && (message.message?.imageMessage || message.message?.videoMessage)) {
-            // Delete the media message
             await sock.sendMessage(chatId, { delete: message.key });
             await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Media message deleted due to violation of group rules (sales content detected).') });
 
             console.log(`⚠️ Media message from ${sender} deleted in group: ${chatId} (sales content detected)`);
 
-            // Warn the user with a threshold of 2 warnings for sales content
-            await warnUser(sock, chatId, sender, 'Posting sales content', config.warningThreshold.sales);
+            // **Move warning handling to warning.js**
+            await issueWarning(sock, chatId, sender, 'Posting sales content', config.warningThreshold.sales);
             return;
         }
 
-        // Check for links
+        // **Link Detection**
         if (linkRegex.test(msgText)) {
-            // Delete the message
             await sock.sendMessage(chatId, { delete: message.key });
             await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Message deleted due to violation of group rules (link detected).') });
 
             console.log(`⚠️ Message from ${sender} deleted in group: ${chatId} (link detected)`);
 
-            // Warn the user with a threshold of 3 warnings for links
-            await warnUser(sock, chatId, sender, 'Posting links', config.warningThreshold.links);
+            // **Move warning handling to warning.js**
+            await issueWarning(sock, chatId, sender, 'Posting links', config.warningThreshold.links);
             return;
         }
     } catch (error) {
@@ -95,5 +100,25 @@ const handleProtectionMessages = async (sock, message) => {
     }
 };
 
-module.exports = { handleProtectionMessages, showAllGroupStats };
+let antiDeleteGroups = new Set(); // Store groups with anti-delete enabled
+
+function toggleAntiDelete(groupId, state) {
+    if (state === 'on') {
+        antiDeleteGroups.add(groupId);
+    } else {
+        antiDeleteGroups.delete(groupId);
+    }
+}
+
+const handleAntiDelete = (sock, message, botNumber) => {
+    const { remoteJid: chatId, participant: sender, message: deletedMessage } = message.key;
+
+    if (antiDeleteGroups.has(chatId) && sender !== botNumber) {
+        console.log(`Restoring deleted message from ${sender}: ${deletedMessage}`);
+        // Code to resend deleted message
+        sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`🔄 Restored message from ${sender}: ${deletedMessage}`) });
+    }
+};
+
+module.exports = { handleProtectionMessages, showAllGroupStats, handleAntiDelete, toggleAntiDelete };
 

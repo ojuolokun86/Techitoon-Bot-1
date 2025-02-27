@@ -1,6 +1,6 @@
-const { formatResponseWithHeaderFooter } = require('../utils/utils');
+const { sendMessage, sendReaction } = require('../utils/messageUtils');
 const supabase = require('../supabaseClient');
-const { warnUser, resetWarnings, listWarnings } = require('../message-controller/warning');
+const { issueWarning, resetWarnings, listWarnings } = require('../message-controller/warning');
 const config = require('../config/config');
 const { updateUserStats } = require('../utils/utils');
 const commonCommands = require('../message-controller/commonCommands');
@@ -22,12 +22,12 @@ const showAllGroupStats = async (sock, chatId) => {
 
         if (error) {
             console.error('Error fetching group stats:', error);
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Error fetching group stats.') });
+            await sendMessage(sock, chatId, '❌ Error fetching group stats.');
             return;
         }
 
         if (!stats || stats.length === 0) {
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📊 No stats available for this group.') });
+            await sendMessage(sock, chatId, '📊 No stats available for this group.');
             return;
         }
 
@@ -40,17 +40,19 @@ const showAllGroupStats = async (sock, chatId) => {
             statsMessage += `⚠️ *Warnings*: ${stat.warnings}\n\n`;
         });
 
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(statsMessage) });
+        await sendMessage(sock, chatId, statsMessage);
     } catch (error) {
         console.error('Error showing group stats:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Error showing group stats.') });
+        await sendMessage(sock, chatId, '❌ Error showing group stats.');
     }
 };
 
 const handleIncomingMessages = async (sock, m) => {
     try {
         const message = m.messages[0];
-        const msgText = message.message?.conversation || message.message?.extendedTextMessage?.text || message.message?.imageMessage?.caption || message.message?.videoMessage?.caption || '';
+        if (!message.message) return;
+
+        const msgText = message.message.conversation || message.message.extendedTextMessage?.text || message.message.imageMessage?.caption || message.message.videoMessage?.caption || '';
         const chatId = message.key.remoteJid;
         const sender = message.key.participant || message.key.remoteJid;
         const isGroup = chatId.endsWith('@g.us');
@@ -59,6 +61,19 @@ const handleIncomingMessages = async (sock, m) => {
         const isBackupNumber = sender === config.backupNumber;
 
         console.log(`Received message: ${msgText} from ${sender} in ${chatId}`);
+
+        if (!msgText.trim().startsWith(config.botSettings.commandPrefix)) {
+            console.log('🛑 Ignoring non-command message');
+            await handleProtectionMessages(sock, message);
+            return;
+        }
+
+        const args = msgText.trim().split(/ +/);
+        const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
+        console.log(`🛠 Extracted Command: ${command}`);
+
+        // React to the command message
+        await sendReaction(sock, chatId, message.key.id, command);
 
         // Fetch group/channel settings from Supabase
         let groupSettings = null;
@@ -75,18 +90,13 @@ const handleIncomingMessages = async (sock, m) => {
         }
 
         if ((isGroup || isChannel) && (!groupSettings || !groupSettings.bot_enabled)) {
-            if (msgText.trim().startsWith(config.botSettings.commandPrefix)) {
-                const args = msgText.trim().split(/ +/);
-                const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
-                if (command === 'enable' && (sender === config.botOwnerId || isBackupNumber)) {
-                    await adminCommands.enableBot(sock, chatId, sender);
-                } else if (command === 'disable' && (sender === config.botOwnerId || isBackupNumber)) {
-                    await adminCommands.disableBot(sock, chatId, sender);
-                } else {
-                    await sock.sendMessage(chatId, {
-                        text: formatResponseWithHeaderFooter('Oops! 🤖 The bot is currently disabled in this group/channel. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏'),
-                    });
-                }
+            if (command === 'enable' && (sender === config.botOwnerId || isBackupNumber)) {
+                await adminCommands.enableBot(sock, chatId, sender);
+            } else if (command === 'disable' && (sender === config.botOwnerId || isBackupNumber)) {
+                await adminCommands.disableBot(sock, chatId, sender);
+            } else {
+                console.log('Bot is disabled, cannot send message.');
+                await sendMessage(sock, chatId, 'Oops! 🤖 The bot is currently disabled in this group/channel. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏');
             }
             console.log('🛑 Bot is disabled in this group/channel.');
             return;
@@ -98,15 +108,8 @@ const handleIncomingMessages = async (sock, m) => {
             console.log('📩 Processing group/channel message');
         }
 
-        if (!msgText.trim().startsWith(config.botSettings.commandPrefix)) {
-            console.log('🛑 Ignoring non-command message');
-            await handleProtectionMessages(sock, message);
-            return;
-        }
-
-        const args = msgText.trim().split(/ +/);
-        const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
-        console.log(`🛠 Extracted Command: ${command}`);
+        // Check if the sender is an admin
+        const isAdmin = await checkIfAdmin(sock, chatId, sender);
 
         // Handle the resetwarn command
         if (command === 'resetwarn' && args.length > 0) {
@@ -124,7 +127,8 @@ const handleIncomingMessages = async (sock, m) => {
         // Handle other commands
         switch (command) {
             case 'ping':
-                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🏓 Pong! Bot is active.') });
+                console.log('Sending pong message');
+                await sendMessage(sock, chatId, '🏓 Pong! Bot is active.');
                 break;
             case 'menu':
                 await commonCommands.sendHelpMenu(sock, chatId, isGroup, isAdmin);
@@ -166,7 +170,7 @@ const handleIncomingMessages = async (sock, m) => {
 👥 *Group*: ${groupMetadata.subject}
 📝 *Message*: ${args.join(' ')}
 `;
-                await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(tagallMessage), mentions: participants });
+                await sendMessage(sock, chatId, tagallMessage, mentions);
                 break;
             case 'mute':
                 await adminCommands.muteChat(sock, chatId);
@@ -252,7 +256,7 @@ const handleIncomingMessages = async (sock, m) => {
             case 'warn':
                 const userId = args[0].replace('@', '') + '@s.whatsapp.net';
                 const reason = args.slice(1).join(' ') || 'No reason provided';
-                await warnUser(sock, chatId, userId, reason, config.warningThreshold.sales);
+                await issueWarning(sock, chatId, userId, reason, config.warningThreshold.sales);
                 break;
             case 'listwarn':
                 await listWarnings(sock, chatId);
@@ -270,62 +274,9 @@ const handleIncomingMessages = async (sock, m) => {
                 const delCommand = args[0];
                 await deleteCommand(sock, chatId, delCommand);
                 break;
-            case 'livescore':
-                exec("python football_bot.py", (error, stdout, stderr) => {
-                    if (error) {
-                        sock.sendMessage(chatId, { text: "❌ Error getting live scores." });
-                        return;
-                    }
-                    sock.sendMessage(chatId, { text: stdout });
-                });
-                break;
-            case 'news':
-                exec("python football_bot.py news", (error, stdout, stderr) => {
-                    if (error) {
-                        sock.sendMessage(chatId, { text: "❌ Error getting football news." });
-                        return;
-                    }
-                    sock.sendMessage(chatId, { text: stdout });
-                });
-                break;
-            case 'highlight':
-                exec("python football_bot.py highlight", (error, stdout, stderr) => {
-                    if (error) {
-                        sock.sendMessage(chatId, { text: "❌ Error getting match highlights." });
-                        return;
-                    }
-                    sock.sendMessage(chatId, { text: stdout });
-                });
-                break;
-            case 'activatechannel':
-                const { error } = await supabase
-                    .from('settings')
-                    .upsert({ key: 'channel_id', value: chatId });
-
-                if (error) {
-                    console.error('Error activating channel:', error);
-                    sock.sendMessage(chatId, { text: "❌ Error activating channel." });
-                } else {
-                    sock.sendMessage(chatId, { text: "✅ Bot activated in this channel." });
-                }
-                break;
-            case 'efootball':
-                exec("python football_bot.py efootball", (error, stdout, stderr) => {
-                    if (error) {
-                        sock.sendMessage(chatId, { text: "❌ Error getting eFootball news." });
-                        return;
-                    }
-                    sock.sendMessage(chatId, { text: stdout });
-                });
-                break;
-            case 'football':
-                await adminCommands.startFootballUpdates(sock, chatId);
-                break;
-            case 'stopfootball':
-                await adminCommands.stopFootballUpdates(sock, chatId);
-                break;
             default:
-                await callCommand(sock, chatId, command);
+                console.log(`Unknown command: ${command}`);
+                await sendMessage(sock, chatId, '❌ Unknown command! Use .menu for commands list.');
         }
 
         // Update user statistics for commands
@@ -344,14 +295,14 @@ const callCommand = async (sock, chatId, command) => {
             .single();
 
         if (error || !data) {
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Command not found.') });
+            await sendMessage(sock, chatId, '❌ Command not found.');
             return;
         }
 
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(data.response) });
+        await sendMessage(sock, chatId, data.response);
     } catch (error) {
         console.error('Error executing custom command:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('⚠️ Error executing command.') });
+        await sendMessage(sock, chatId, '⚠️ Error executing command.');
     }
 };
 
@@ -360,7 +311,7 @@ const handleNewParticipants = async (sock, chatId, participants) => {
     try {
         for (const participant of participants) {
             const welcomeMessage = `👋 Welcome @${participant.split('@')[0]} to the group! Please read the group rules.`;
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(welcomeMessage), mentions: [participant] });
+            await sendMessage(sock, chatId, welcomeMessage, [participant]);
             console.log(`👋 Sent welcome message to ${participant}`);
         }
     } catch (error) {
@@ -368,13 +319,19 @@ const handleNewParticipants = async (sock, chatId, participants) => {
     }
 };
 
-const checkIfAdmin = async (sock, chatId, userId) => {
-    try {
-        const groupMetadata = await sock.groupMetadata(chatId);
-        return groupMetadata.participants.some(p => p.id === userId && (p.admin === 'admin' || p.admin === 'superadmin'));
-    } catch (error) {
-        console.error('Error checking admin status:', error);
-        return false;
+const checkIfAdmin = async (sock, chatId, userId, retries = 3, delay = 2000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const groupMetadata = await sock.groupMetadata(chatId);
+            return groupMetadata.participants.some(p => p.id === userId && (p.admin === 'admin' || p.admin === 'superadmin'));
+        } catch (error) {
+            if (i === retries - 1) {
+                console.error('Error checking admin status:', error);
+                return false;
+            }
+            console.log(`Retrying checkIfAdmin (${i + 1}/${retries})...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
     }
 };
 

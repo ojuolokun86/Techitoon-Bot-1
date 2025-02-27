@@ -12,12 +12,33 @@ async function saveSuperadmin(groupId, userId) {
         .upsert([{ group_id: groupId, user_id: userId }]);
 }
 
+async function fetchGroupMetadataWithRetry(sock, groupId, retries = 3, delay = 2000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await sock.groupMetadata(groupId);
+        } catch (err) {
+            if (i === retries - 1) {
+                throw err;
+            }
+            console.log(`Retrying fetchGroupMetadata (${i + 1}/${retries})...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
+
 async function startSecurityBot(sock) {
     const myNumber = config.botOwnerId;
 
     sock.ev.on('group-participants.update', async (update) => {
         const { id, participants, action, by } = update;
-        const groupMetadata = await sock.groupMetadata(id);
+        let groupMetadata;
+
+        try {
+            groupMetadata = await fetchGroupMetadataWithRetry(sock, id);
+        } catch (err) {
+            console.log(`Error fetching group metadata for ${id}:`, err);
+            return; // Exit the handler if group metadata cannot be fetched
+        }
 
         if (action === 'promote') {
             for (const participant of participants) {

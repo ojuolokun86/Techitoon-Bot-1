@@ -1,7 +1,8 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { handleIncomingMessages } = require('../message-controller/messageHandler');
-const { handleGroupParticipantsUpdate } = require('../message-controller/groupHandler');
+const { handleGroupParticipantsUpdate } = require('../message-controller/messageHandler');
 const { logInfo, logError } = require('../utils/logger');
+const { resetOldWarnings } = require('../utils/scheduler');
 
 const startBot = async (sock) => {
     sock.ev.on('messages.upsert', async (m) => {
@@ -34,6 +35,7 @@ const start = async () => {
         } else if (connection === 'open') {
             logInfo('Techitoon Bot is ready!');
             startBot(sock);
+            resetOldWarnings(sock); // Start the scheduled job
         }
     });
 

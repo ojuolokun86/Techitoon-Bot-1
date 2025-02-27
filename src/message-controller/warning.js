@@ -2,7 +2,7 @@ const { formatResponseWithHeaderFooter } = require('../utils/utils');
 const supabase = require('../supabaseClient');
 const config = require('../config/config');
 
-const warnUser = async (sock, chatId, userId, reason, warningThreshold) => {
+const issueWarning = async (sock, chatId, userId, reason, warningThreshold) => {
     try {
         // Fetch current warning count
         const { data: existingWarnings, error: fetchError } = await supabase
@@ -23,7 +23,7 @@ const warnUser = async (sock, chatId, userId, reason, warningThreshold) => {
         // Update warning count
         const { error: updateError } = await supabase
             .from('warnings')
-            .upsert({ user_id: userId, group_id: chatId, reason: reason, count: warningCount }, { onConflict: ['user_id', 'group_id'] });
+            .upsert({ user_id: userId, group_id: chatId, reason: reason, count: warningCount, created_at: new Date().toISOString() }, { onConflict: ['user_id', 'group_id'] });
 
         if (updateError) {
             console.error('Error updating warning count:', updateError);
@@ -52,21 +52,21 @@ const warnUser = async (sock, chatId, userId, reason, warningThreshold) => {
             console.log(`🚫 User ${userId} removed from group: ${chatId} due to exceeding the warning limit`);
         }
     } catch (error) {
-        console.error('Error warning user:', error);
+        console.error('Error issuing warning:', error);
     }
 };
 
 const resetWarnings = async (sock, chatId, userId) => {
     try {
-        // Reset the warning count for the user
+        // Delete the warning record for the user
         const { error } = await supabase
             .from('warnings')
-            .update({ count: 0 })
+            .delete()
             .eq('user_id', userId)
             .eq('group_id', chatId);
 
         if (error) {
-            console.error('Error resetting warnings:', error);
+            console.error('Error deleting warnings:', error);
             return;
         }
 
@@ -114,4 +114,4 @@ const listWarnings = async (sock, chatId) => {
     }
 };
 
-module.exports = { warnUser, resetWarnings, listWarnings };
+module.exports = { issueWarning, resetWarnings, listWarnings };
