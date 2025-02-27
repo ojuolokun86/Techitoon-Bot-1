@@ -11,6 +11,7 @@ const pollCommands = require('../message-controller/polls');
 const tournamentCommands = require('../message-controller/tournament');
 const { handleProtectionMessages } = require('../message-controller/protection');
 const { exec } = require("child_process");
+const { removedMessages, leftMessages } = require('../utils/goodbyeMessages');
 
 const showAllGroupStats = async (sock, chatId) => {
     try {
@@ -62,19 +63,6 @@ const handleIncomingMessages = async (sock, m) => {
 
         console.log(`Received message: ${msgText} from ${sender} in ${chatId}`);
 
-        if (!msgText.trim().startsWith(config.botSettings.commandPrefix)) {
-            console.log('🛑 Ignoring non-command message');
-            await handleProtectionMessages(sock, message);
-            return;
-        }
-
-        const args = msgText.trim().split(/ +/);
-        const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
-        console.log(`🛠 Extracted Command: ${command}`);
-
-        // React to the command message
-        await sendReaction(sock, chatId, message.key.id, command);
-
         // Fetch group/channel settings from Supabase
         let groupSettings = null;
         if (isGroup || isChannel) {
@@ -89,14 +77,19 @@ const handleIncomingMessages = async (sock, m) => {
             }
         }
 
+        // Check if the bot is enabled in the group/channel
         if ((isGroup || isChannel) && (!groupSettings || !groupSettings.bot_enabled)) {
-            if (command === 'enable' && (sender === config.botOwnerId || isBackupNumber)) {
-                await adminCommands.enableBot(sock, chatId, sender);
-            } else if (command === 'disable' && (sender === config.botOwnerId || isBackupNumber)) {
-                await adminCommands.disableBot(sock, chatId, sender);
-            } else {
-                console.log('Bot is disabled, cannot send message.');
-                await sendMessage(sock, chatId, 'Oops! 🤖 The bot is currently disabled in this group/channel. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏');
+            if (msgText.trim().startsWith(config.botSettings.commandPrefix)) {
+                const args = msgText.trim().split(/ +/);
+                const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
+                if (command === 'enable' && sender === config.botOwnerId) {
+                    await adminCommands.enableBot(sock, chatId, sender);
+                } else if (command === 'disable' && sender === config.botOwnerId) {
+                    await adminCommands.disableBot(sock, chatId, sender);
+                } else {
+                    console.log('Bot is disabled, cannot send message.');
+                    await sendMessage(sock, chatId, 'Oops! 🤖 The bot is currently disabled in this group/channel. Don\'t worry, the bot owner can enable it soon! 😊 Please try again later! 🙏');
+                }
             }
             console.log('🛑 Bot is disabled in this group/channel.');
             return;
@@ -107,6 +100,19 @@ const handleIncomingMessages = async (sock, m) => {
         } else if (isGroup || isChannel) {
             console.log('📩 Processing group/channel message');
         }
+
+        if (!msgText.trim().startsWith(config.botSettings.commandPrefix)) {
+            console.log('🛑 Ignoring non-command message');
+            await handleProtectionMessages(sock, message);
+            return;
+        }
+
+        const args = msgText.trim().split(/ +/);
+        const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
+        console.log(`🛠 Extracted Command: ${command}`);
+
+        // React to the command message
+        await sendReaction(sock, chatId, message.key.id, command);
 
         // Check if the sender is an admin
         const isAdmin = await checkIfAdmin(sock, chatId, sender);
@@ -149,7 +155,7 @@ const handleIncomingMessages = async (sock, m) => {
                 await commonCommands.listAdmins(sock, chatId);
                 break;
             case 'info':
-                await commonCommands.sendGroupInfo(sock, chatId);
+                await commonCommands.sendGroupInfo(sock, chatId, sock.user.id);
                 break;
             case 'rules':
                 await commonCommands.sendGroupRules(sock, chatId);
@@ -236,10 +242,18 @@ const handleIncomingMessages = async (sock, m) => {
                 await adminCommands.deleteMessage(sock, chatId, message);
                 break;
             case 'enable':
-                await adminCommands.enableBot(sock, chatId, sender);
+                if (sender === config.botOwnerId) {
+                    await adminCommands.enableBot(sock, chatId, sender);
+                } else {
+                    await sendMessage(sock, chatId, '❌ Only the bot owner can enable the bot.');
+                }
                 break;
             case 'disable':
-                await adminCommands.disableBot(sock, chatId, sender);
+                if (sender === config.botOwnerId) {
+                    await adminCommands.disableBot(sock, chatId, sender);
+                } else {
+                    await sendMessage(sock, chatId, '❌ Only the bot owner can disable the bot.');
+                }
                 break;
             case 'startwelcome':
                 await adminCommands.startWelcome(sock, chatId);
@@ -283,6 +297,12 @@ const handleIncomingMessages = async (sock, m) => {
         updateUserStats(sender, command);
     } catch (error) {
         console.error("❌ Error in command processing:", error);
+
+        // Handle session errors
+        if (error.message.includes('Bad MAC') || error.message.includes('No matching sessions found for message')) {
+            console.error('Session error:', error);
+            await sendMessage(sock, chatId, '⚠️ *Session error occurred. Please try again later.*');
+        }
     }
 };
 
@@ -335,4 +355,45 @@ const checkIfAdmin = async (sock, chatId, userId, retries = 3, delay = 2000) => 
     }
 };
 
-module.exports = { handleIncomingMessages, handleNewParticipants, checkIfAdmin };
+const handleGroupParticipantsUpdate = async (sock, update) => {
+    const { id, participants, action } = update;
+
+    // Fetch group settings from Supabase
+    const { data: groupSettings, error } = await supabase
+        .from('group_settings')
+        .select('bot_enabled')
+        .eq('group_id', id)
+        .single();
+
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching group settings:', error);
+        return;
+    }
+
+    // Check if the bot is enabled in the group
+    if (!groupSettings || !groupSettings.bot_enabled) {
+        console.log('🛑 Bot is disabled in this group. Skipping goodbye messages.');
+        return;
+    }
+
+    if (action === 'remove' || action === 'leave') {
+        for (const participant of participants) {
+            let goodbyeMessage;
+            if (action === 'remove') {
+                // Select a random removed message
+                const randomIndex = Math.floor(Math.random() * removedMessages.length);
+                goodbyeMessage = removedMessages[randomIndex].replace(`${participant.split('@')[0]}`, participant.split('@')[0]);
+            } else if (action === 'leave') {
+                // Select a random left message
+                const randomIndex = Math.floor(Math.random() * leftMessages.length);
+                goodbyeMessage = leftMessages[randomIndex].replace(`${participant.split('@')[0]}`, participant.split('@')[0]);
+            }
+
+            // Send the goodbye message
+            await sendMessage(sock, id, goodbyeMessage, [participant]);
+            console.log(`👋 Sent goodbye message to ${participant}`);
+        }
+    }
+};
+
+module.exports = { handleIncomingMessages, handleNewParticipants, checkIfAdmin, handleGroupParticipantsUpdate };

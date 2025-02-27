@@ -114,16 +114,54 @@ const listAdmins = async (sock, chatId) => {
     await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(`👑 *Group Admins*:\n${adminList}`), mentions: admins.map(admin => admin.id) });
 };
 
-const sendGroupInfo = async (sock, chatId) => {
-    const groupMetadata = await sock.groupMetadata(chatId);
-    const groupInfo = `
-📋 *Group Info*:
-- Name: ${groupMetadata.subject}
-- Description: ${groupMetadata.desc}
-- Created At: ${new Date(groupMetadata.creation * 1000).toLocaleString()}
-- Total Members: ${groupMetadata.participants.length}
-    `;
-    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(groupInfo) });
+const sendGroupInfo = async (sock, chatId, botNumber) => {
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participants = groupMetadata.participants;
+
+        // Extracting members, admins, and bots
+        const members = participants.map(p => `@${p.id.split('@')[0]}`);
+        const admins = participants.filter(p => p.admin).map(a => `@${a.id.split('@')[0]}`);
+        const bots = participants.filter(p => p.id.includes('g.us') || p.id.includes('bot')).map(b => `@${b.id.split('@')[0]}`);
+
+        // Check if bot is active in the group
+        const botActive = participants.some(p => p.id.includes(botNumber)) ? "✅ *Yes*" : "❌ *No*";
+
+        // Format created date nicely
+        const createdAt = new Date(groupMetadata.creation * 1000).toLocaleString();
+
+        // Stylish & well-formatted group info message
+        const groupInfo = `
+╔══════════════════════════╗
+║ 🎉 *GROUP INFORMATION* 🎉  ║
+╠══════════════════════════╣
+║ 📌 *Name:* ${groupMetadata.subject}
+║ 📝 *Description:* ${groupMetadata.desc || "No description available"}
+║ 📅 *Created At:* ${createdAt}
+╠══════════════════════════╣
+║ 👥 *Total Members:* ${members.length}
+║ 🔰 *Total Admins:* ${admins.length}
+║ 🤖 *Total Bots:* ${bots.length}
+║ 🚀 *Is Bot Active?* ${botActive}
+╠══════════════════════════╣
+║ 🏅 *Group Admins:*  
+║ ${admins.length > 0 ? admins.join(', ') : "No admins found"}
+╠══════════════════════════╣
+║ 🤖 *Bots in Group:*  
+║ ${bots.length > 0 ? bots.join(', ') : "No bots found"}
+╚══════════════════════════╝
+        `;
+
+        // Send formatted response with mentions
+        await sock.sendMessage(chatId, { 
+            text: formatResponseWithHeaderFooter(groupInfo), 
+            mentions: [...members, ...admins, ...bots] 
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching group metadata:", error);
+        await sock.sendMessage(chatId, { text: "⚠️ *Failed to fetch group info. Please try again later.*" });
+    }
 };
 
 const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {

@@ -3,6 +3,11 @@ const commandEmojis = require('./commandEmojis');
 
 const sendMessage = async (sock, chatId, message, mentions = []) => {
     try {
+        // Ensure mentions is always an array
+        if (!Array.isArray(mentions)) {
+            mentions = [];
+        }
+
         await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(message), mentions });
         console.log(`✅ Message sent to ${chatId}: ${message}`);
     } catch (error) {
