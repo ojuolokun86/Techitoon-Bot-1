@@ -9,7 +9,7 @@ const botCommands = require('../message-controller/botCommands');
 const scheduleCommands = require('../message-controller/scheduleMessage');
 const pollCommands = require('../message-controller/polls');
 const tournamentCommands = require('../message-controller/tournament');
-const { handleProtectionMessages } = require('../message-controller/protection');
+const { handleProtectionMessages, handleAntiDelete, toggleAntiDelete } = require('../message-controller/protection');
 const { exec } = require("child_process");
 const { removedMessages, leftMessages } = require('../utils/goodbyeMessages');
 
@@ -111,7 +111,7 @@ const handleIncomingMessages = async (sock, m) => {
         const command = args.shift().slice(config.botSettings.commandPrefix.length).toLowerCase();
         console.log(`🛠 Extracted Command: ${command}`);
 
-        // React to the command message
+        // React to the command
         await sendReaction(sock, chatId, message.key.id, command);
 
         // Check if the sender is an admin
@@ -288,6 +288,47 @@ const handleIncomingMessages = async (sock, m) => {
                 const delCommand = args[0];
                 await deleteCommand(sock, chatId, delCommand);
                 break;
+            case 'antidelete':
+                if (sender !== config.botOwnerId) {
+                    await sendMessage(sock, chatId, '❌ Only the bot owner can enable or disable the anti-delete feature.');
+                    console.log(`Unauthorized attempt to change anti-delete by ${sender}`);
+                    return;
+                }
+                if (args[0] === 'on' || args[0] === 'off') {
+                    toggleAntiDelete(chatId, args[0]);
+                    await sendMessage(sock, chatId, `🔄 Anti-delete is now ${args[0]}.`);
+                } else {
+                    await sendMessage(sock, chatId, '❌ Invalid argument. Use "on" or "off".');
+                }
+                break;
+            case 'clear chat':
+                try {
+                    console.log("Attempting to clear chat...");
+                    await sock.sendMessage(chatId, { delete: message.key }); // Delete the command itself
+                    await sock.sendMessage(chatId, { text: "🗑 Clearing entire chat (including media)..." });
+
+                    let deletedCount = 0;
+
+                    while (true) {
+                        const messages = await sock.loadMessages(chatId, 50); // Load 50 messages at a time
+
+                        if (messages.messages.length === 0) break; // Stop if no messages left
+
+                        for (const msg of messages.messages) {
+                            if (!msg.key.fromMe) { // Ensure bot doesn't delete its own messages
+                                await sock.sendMessage(chatId, { delete: msg.key });
+                                deletedCount++;
+                            }
+                        }
+                    }
+
+                    await sock.sendMessage(chatId, { text: `✅ Deleted ${deletedCount} messages (including media).` });
+                    console.log(`Cleared ${deletedCount} messages in: ${chatId}`);
+                } catch (error) {
+                    console.error("Error clearing chat:", error);
+                    await sock.sendMessage(chatId, { text: "❌ Failed to clear chat." });
+                }
+                break;
             default:
                 console.log(`Unknown command: ${command}`);
                 await sendMessage(sock, chatId, '❌ Unknown command! Use .menu for commands list.');
@@ -396,4 +437,17 @@ const handleGroupParticipantsUpdate = async (sock, update) => {
     }
 };
 
-module.exports = { handleIncomingMessages, handleNewParticipants, checkIfAdmin, handleGroupParticipantsUpdate };
+// Debugging with Baileys events
+const setupDebugging = (sock) => {
+    sock.ev.on('messages.upsert', async (m) => {
+        console.log("Received message:", JSON.stringify(m, null, 2));
+    });
+    sock.ev.on('messages.update', (m) => {
+        console.log("Message update:", JSON.stringify(m, null, 2));
+    });
+    sock.ev.on('connection.update', (update) => {
+        console.log("Connection update:", JSON.stringify(update, null, 2));
+    });
+};
+
+module.exports = { handleIncomingMessages, handleNewParticipants, checkIfAdmin, handleGroupParticipantsUpdate, setupDebugging };

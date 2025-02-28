@@ -42,7 +42,9 @@ const commandEmojis = {
     listwarn: '📋',
     resetwarn: '🔄',
     addcommand: '➕',
-    deletecommand: '➖'
+    deletecommand: '➖',
+    antideleteon: '🔒', // Added emoji for enabling anti-delete
+    antideleteoff: '🔓' // Added emoji for disabling anti-delete
 };
 
 module.exports = commandEmojis;

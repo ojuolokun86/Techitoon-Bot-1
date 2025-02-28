@@ -1,6 +1,8 @@
 const supabase = require('../supabaseClient');
 const { formatResponseWithHeaderFooter } = require('../utils/utils');
 const axios = require('axios');
+const { toggleAntiDelete } = require('./protection'); // Import the toggleAntiDelete function
+const config = require('../config/config'); // Import the config to get the bot owner ID
 
 // Function to show all group statistics
 const showAllGroupStats = async (sock, chatId) => {
@@ -219,11 +221,37 @@ const sendHelpMenu = async (sock, chatId, isGroup, isAdmin) => {
 📜 .listwarn – Check the troublemakers! 👀 (Admin Only)
 ❌ .resetwarn @user – Forgive and forget! ✝️ (Admin Only)
 
+🔒 Anti-Delete:
+🔓 .antidelete on – Enable anti-delete feature! 🔒 (Admin Only)
+🔓 .antidelete off – Disable anti-delete feature! 🔓 (Admin Only)
+
 💡 Use commands wisely! Or the bot might just develop a mind of its own… 🤖💀
 
 🚀 𝙏𝙚𝙘𝙝𝙞𝙩𝙤𝙤𝙣 - Making WhatsApp Chats Smarter! 🚀
     `;
     await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(helpText) });
+};
+
+// Function to enable anti-delete
+const enableAntiDelete = async (sock, chatId, sender) => {
+    if (sender !== config.botOwnerId) {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Only the bot owner can enable the anti-delete feature.') });
+        console.log(`Unauthorized attempt to enable anti-delete by ${sender}`);
+        return;
+    }
+    toggleAntiDelete(chatId, 'on');
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🔓 Anti-delete feature has been enabled.') });
+};
+
+// Function to disable anti-delete
+const disableAntiDelete = async (sock, chatId, sender) => {
+    if (sender !== config.botOwnerId) {
+        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Only the bot owner can disable the anti-delete feature.') });
+        console.log(`Unauthorized attempt to disable anti-delete by ${sender}`);
+        return;
+    }
+    toggleAntiDelete(chatId, 'off');
+    await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('🔓 Anti-delete feature has been disabled.') });
 };
 
 module.exports = {
@@ -234,5 +262,7 @@ module.exports = {
     showAllGroupStats,
     updateUserStats,
     sendJoke,
-    sendQuote
+    sendQuote,
+    enableAntiDelete,
+    disableAntiDelete
 };

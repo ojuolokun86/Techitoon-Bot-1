@@ -11,41 +11,6 @@ const salesKeywords = [
 
 const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/[^\s]+|chat\.whatsapp\.com\/[^\s]+|t\.me\/[^\s]+|bit\.ly\/[^\s]+|[\w-]+\.(com|net|org|info|biz|xyz|live|tv|me|link)(\/\S*)?)/gi;
 
-const showAllGroupStats = async (sock, chatId) => {
-    try {
-        // Fetch group stats from Supabase
-        const { data: stats, error } = await supabase
-            .from('group_stats')
-            .select('*')
-            .eq('group_id', chatId);
-
-        if (error) {
-            console.error('Error fetching group stats:', error);
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Error fetching group stats.') });
-            return;
-        }
-
-        if (!stats || stats.length === 0) {
-            await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('📊 No stats available for this group.') });
-            return;
-        }
-
-        // Format the stats into a readable message
-        let statsMessage = '📊 *Group Stats* 📊\n\n';
-        stats.forEach(stat => {
-            statsMessage += `👤 *User*: @${stat.user_id.split('@')[0]}\n`;
-            statsMessage += `📅 *Messages Sent*: ${stat.messages_sent}\n`;
-            statsMessage += `👍 *Reactions*: ${stat.reactions}\n`;
-            statsMessage += `⚠️ *Warnings*: ${stat.warnings}\n\n`;
-        });
-
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter(statsMessage) });
-    } catch (error) {
-        console.error('Error showing group stats:', error);
-        await sock.sendMessage(chatId, { text: formatResponseWithHeaderFooter('❌ Error showing group stats.') });
-    }
-};
-
 const handleProtectionMessages = async (sock, message) => {
     const chatId = message.key.remoteJid;
     const sender = message.key.participant || message.key.remoteJid;
